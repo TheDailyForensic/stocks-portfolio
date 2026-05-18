@@ -1,0 +1,271 @@
+/* ============================================================
+   STOCKSIM -- TRADE INTERFACE PROTOCOLS
+   ============================================================ */
+
+/* ---- SEARCH CONTROL UTILITIES ---- */
+.search-card {
+  margin-bottom: 1.5rem;
+  padding: 1rem !important;
+}
+
+.search-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.search-icon {
+  position: absolute;
+  left: 1rem;
+  color: var(--text-dim);
+  font-size: 1.1rem;
+  pointer-events: none;
+}
+
+.search-input {
+  width: 100%;
+  background: var(--bg-input);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 0.85rem 1rem 0.85rem 2.8rem;
+  font-family: var(--font-mono);
+  font-size: 1rem;
+  outline: none;
+  transition: all var(--transition);
+}
+
+.search-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.1);
+}
+
+.search-clear {
+  position: absolute;
+  right: 1rem;
+  background: none;
+  border: none;
+  color: var(--text-dim);
+  cursor: pointer;
+  font-family: var(--font-mono);
+}
+
+.search-clear:hover {
+  color: var(--red);
+}
+
+.search-results {
+  position: absolute;
+  top: 100%; left: 0; right: 0;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-bright);
+  border-top: none;
+  border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+  z-index: 400;
+  max-height: 250px;
+  overflow-y: auto;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.7);
+  font-family: var(--font-mono);
+}
+
+/* ---- POPULAR TICKERS GRID ---- */
+.popular-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: 0.75rem;
+}
+
+.pop-skeleton {
+  height: 60px;
+  background: linear-gradient(90deg, var(--bg-input) 25%, var(--bg-hover) 50%, var(--bg-input) 75%);
+  background-size: 200% 100%;
+  animation: loading-pulse 1.5s infinite;
+  border-radius: var(--radius);
+  border: 1px solid var(--border);
+}
+
+@keyframes loading-pulse {
+  0% { background-position: 200% 0; }
+  100% { background-position: -200% 0; }
+}
+
+/* ---- STOCK HERO ROW PANEL ---- */
+.stock-hero {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: linear-gradient(145deg, var(--bg-card), var(--bg-elevated));
+  margin-bottom: 1.5rem;
+  border-left: 4px solid var(--accent);
+}
+
+.stock-hero-left {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+}
+
+.stock-symbol-badge {
+  background: var(--bg-input);
+  border: 1px solid var(--border-bright);
+  color: var(--text-mono);
+  font-family: var(--font-mono);
+  font-size: 1.6rem;
+  font-weight: 700;
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius);
+  letter-spacing: 0.05em;
+}
+
+.stock-name {
+  font-family: var(--font-display);
+  font-size: 1.8rem;
+  line-height: 1.1;
+  color: var(--text-primary);
+}
+
+.stock-exchange {
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  color: var(--text-dim);
+  text-transform: uppercase;
+}
+
+.stock-price-big {
+  font-family: var(--font-mono);
+  font-size: 2.2rem;
+  font-weight: 700;
+  text-align: right;
+  color: var(--text-primary);
+}
+
+.stock-change-big {
+  font-family: var(--font-mono);
+  font-size: 0.95rem;
+  font-weight: bold;
+  text-align: right;
+}
+
+/* ---- INTERACTIVE TRANSACTION TOGGLE ---- */
+.trade-type-toggle {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  padding: 0.25rem;
+  border-radius: var(--radius);
+  margin-bottom: 1.25rem;
+}
+
+.trade-type-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-dim);
+  font-family: var(--font-display);
+  font-size: 1.1rem;
+  letter-spacing: 0.1em;
+  padding: 0.5rem;
+  cursor: pointer;
+  border-radius: 2px;
+  transition: all var(--transition);
+}
+
+.trade-type-btn[data-type="buy"].active {
+  background: var(--accent);
+  color: #000;
+}
+
+.trade-type-btn[data-type="sell"].active {
+  background: var(--red);
+  color: #000;
+}
+
+/* ---- REAL-TIME ARITHMETIC PREVIEWS ---- */
+.order-preview {
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 1rem;
+  margin-bottom: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.preview-row {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  color: var(--text-secondary);
+}
+
+.preview-total {
+  border-top: 1px dashed var(--border-bright);
+  padding-top: 0.5rem;
+  margin-top: 0.25rem;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+/* ---- METRICS CHARACTERISTICS INDEX ---- */
+.stats-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem 1.5rem;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px solid var(--bg-input);
+  padding-bottom: 0.35rem;
+}
+
+.stat-lbl {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: var(--text-dim);
+}
+
+.stat-val {
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-primary);
+}
+
+.stock-about {
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+  line-height: 1.6;
+  margin-bottom: 1.25rem;
+}
+
+.btn-watchlist {
+  width: 100%;
+  background: transparent;
+  border: 1px solid var(--border-bright);
+  color: var(--text-primary);
+  padding: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.8rem;
+  cursor: pointer;
+  border-radius: var(--radius);
+  transition: all var(--transition);
+}
+
+.btn-watchlist:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--bg-hover);
+}
+
+/* ---- ADAPTIVE INTERFACE RULES ---- */
+@media (max-width: 600px) {
+  .stock-hero { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .stock-hero-right { text-align: left; }
+  .stock-price-big, .stock-change-big { text-align: left; }
+  .stats-grid { grid-template-columns: 1fr; }
+}
