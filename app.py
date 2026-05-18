@@ -18,9 +18,13 @@ groq_client = OpenAI(
 
 MOCK_USERS_DB = {}
 
-# =====================================================================
-# INTENT ROUTER (Upgraded to map user friendly names dynamically)
-# =====================================================================
+# Helper decoder to quickly clean up raw system tags into human text arrays
+def get_clean_name_mapping(ticker: str) -> str:
+    if ticker == "^IXIC": return "NASDAQ Composite"
+    if ticker == "^NSEI": return "NIFTY 50"
+    if ticker.endswith(".NS"): return ticker.replace(".NS", "")
+    return ticker
+
 def interpret_asset_query(user_input: str) -> dict:
     system_instruction = """
     You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
@@ -28,8 +32,8 @@ def interpret_asset_query(user_input: str) -> dict:
     Rules:
     1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA). cleanName is standard ticker. description is Company Name.
     2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS). cleanName is standard asset without .NS. description is Company Name.
-    3. For Nasdaq Index, ticker is '^IXIC', provider is 'yahoo', cleanName is 'NASDAQ Composite', description is 'US Tech Index Fund Book'.
-    4. For Nifty 50 Index, ticker is '^NSEI', provider is 'yahoo', cleanName is 'NIFTY 50', description is 'NSE National Index Fund Book'.
+    3. For Nasdaq Index, ticker is '^IXIC', provider is 'yahoo', cleanName is 'NASDAQ Composite', description is 'US Tech Index'.
+    4. For Nifty 50 Index, ticker is '^NSEI', provider is 'yahoo', cleanName is 'NIFTY 50', description is 'NSE National Index'.
     
     Respond ONLY with a valid JSON matching this schema:
     {"ticker": "STRING", "provider": "finnhub" or "yahoo", "cleanName": "STRING", "description": "STRING", "error": false}
@@ -82,11 +86,11 @@ def register():
     password = data.get('password', '').strip()
     
     if not username or not display_name or not password:
-        return jsonify({"error": "All operational parameters must be provisioned."}), 400
+        return jsonify({"error": "Please enter a username, display name, and password."}), 400
     if len(password) < 4:
-        return jsonify({"error": "Password key metrics must be at least 4 characters."}), 400
+        return jsonify({"error": "Password must be at least 4 characters long."}), 400
     if username in MOCK_USERS_DB:
-        return jsonify({"error": "Handle allocation unavailable."}), 400
+        return jsonify({"error": "Username is already taken."}), 400
 
     MOCK_USERS_DB[username] = {
         "username": username, "displayName": display_name, "password": password,
@@ -109,7 +113,7 @@ def login():
         del user_view['password']
         return jsonify(user_view)
         
-    return jsonify({"error": "Security signature authentication failed."}), 401
+    return jsonify({"error": "Incorrect username or password."}), 401
 
 @app.route('/api/auth/logout', methods=['POST'])
 def logout():
@@ -120,25 +124,24 @@ def logout():
 def query_market():
     query_text = request.args.get('query', '')
     if not query_text:
-        return jsonify({"error": "Empty search matrix."}), 400
+        return jsonify({"error": "Please type a search query."}), 400
         
     ai_decision = interpret_asset_query(query_text)
     if ai_decision.get('error') or not ai_decision.get('ticker'):
-        return jsonify({"error": "AI could not verify asset class or symbol."}), 404
+        return jsonify({"error": "Could not identify that stock or index name."}), 404
 
     quote = fetch_live_quote(ai_decision['ticker'], ai_decision['provider'])
     if not quote:
-        return jsonify({"error": "Market clearing connection offline."}), 404
+        return jsonify({"error": "Failed to pull live price. Please try again."}), 404
         
-    # Append the clean layout structures to the final API dictionary transmission
     quote["cleanName"] = ai_decision.get("cleanName", ai_decision["ticker"])
-    quote["assetClassDescription"] = ai_decision.get("description", "Asset Instrument Position")
+    quote["assetClassDescription"] = ai_decision.get("description", "Market Asset")
     return jsonify(quote)
 
 @app.route('/api/user/portfolio', methods=['GET'])
 def get_portfolio():
     if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Unauthorized session context."}), 401
+        return jsonify({"error": "Session expired. Please log in again."}), 401
     
     user = MOCK_USERS_DB[session['user']]
     invested = 0
@@ -155,7 +158,9 @@ def get_portfolio():
         invested += mkt_val
         
         positions_list.append({
-            "symbol": ai_meta.get("cleanName", sym), "shares": holding['shares'], "avgCost": holding['cost'],
+            "symbol": ai_meta.get("cleanName", sym), 
+            "rawToken": sym, # Kept safe for click data transmission logic tracking
+            "shares": holding['shares'], "avgCost": holding['cost'],
             "currentPrice": current_price, "marketValue": mkt_val, "gainLoss": gl
         })
         
@@ -170,7 +175,7 @@ def get_portfolio():
 @app.route('/api/trade/execute', methods=['POST'])
 def execute_trade():
     if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Unauthorized session context"}), 401
+        return jsonify({"error": "Session expired. Please log in again."}), 401
         
     data = request.json
     symbol = data.get('symbol', '').upper()
@@ -179,14 +184,15 @@ def execute_trade():
     price = float(data.get('price', 0))
     
     if qty <= 0 or price <= 0:
-        return jsonify({"error": "Invalid metrics matrix"}), 400
+        return jsonify({"error": "Invalid order quantity or market price."}), 400
         
     user = MOCK_USERS_DB[session['user']]
     total_cost = qty * price
+    clean_sym_text = get_clean_name_mapping(symbol)
     
     if mode == 'buy':
         if user['cash'] < total_cost:
-            return jsonify({"error": "Insufficient funds in liquidation profile."}), 400
+            return jsonify({"error": "Insufficient funds. You do not have enough cash for this order."}), 400
         user['cash'] -= total_cost
         if symbol not in user['holdings']:
             user['holdings'][symbol] = {"shares": 0.0, "cost": 0.0}
@@ -196,17 +202,17 @@ def execute_trade():
         user['holdings'][symbol]['shares'] += qty
         user['holdings'][symbol]['cost'] = ((ex_qty * ex_cost) + total_cost) / user['holdings'][symbol]['shares']
         
-        user['history'].insert(0, {"date": "Just Now", "type": "BUY", "symbol": symbol, "shares": qty, "price": price, "sum": total_cost, "pl": 0})
+        user['history'].insert(0, {"date": "Just Now", "type": "BUY", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": 0})
     else:
         if symbol not in user['holdings'] or (user['holdings'][symbol]['shares'] + 0.00001) < qty:
-            return jsonify({"error": "Allocation fractional limits exceeded."}), 400
+            return jsonify({"error": "You do not own enough shares to fulfill this sale."}), 400
             
         cost_sold = qty * user['holdings'][symbol]['cost']
         net_pl = total_cost - cost_sold
         user['cash'] += total_cost
         user['holdings'][symbol]['shares'] -= qty
         
-        user['history'].insert(0, {"date": "Just Now", "type": "SELL", "symbol": symbol, "shares": qty, "price": price, "sum": total_cost, "pl": net_pl})
+        user['history'].insert(0, {"date": "Just Now", "type": "SELL", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": net_pl})
         if user['holdings'][symbol]['shares'] <= 0.0001:
             del user['holdings'][symbol]
             
