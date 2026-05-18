@@ -100,11 +100,9 @@
     .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
     .kpi-card { background: var(--bg-card); border: 1px solid var(--border); padding: 1.25rem; border-radius: var(--radius-lg); }
     
-    /* Flex headers to align definition icons cleanly */
     .kpi-lbl-flex { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
     .kpi-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: bold; margin-top: 0.25rem; }
 
-    /* Interactive Helper Icon Styles */
     .help-tooltip {
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--border); color: var(--text-secondary); font-weight: bold;
@@ -117,11 +115,16 @@
     .form-label { display: block; font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.4rem; }
     .form-input { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.9rem; font-family: var(--font-mono); outline: none; }
     .form-input:focus { border-color: var(--accent); }
+    
+    /* Custom Styling for the range slider element block */
+    .slider-row { display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; }
+    .form-range-input { flex-grow: 1; accent-color: var(--accent); height: 6px; background: var(--bg-input); border-radius: 3px; cursor: pointer; }
+    .slider-max-lbl { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-elevated); padding: 0.2rem 0.5rem; border: 1px solid var(--border); border-radius: 2px; }
+
     .btn-primary { width: 100%; background: var(--accent); color: #000; border: none; padding: 0.85rem; font-family: var(--font-display); font-size: 1rem; letter-spacing: 0.1em; cursor: pointer; border-radius: var(--radius); font-weight: bold; }
     .btn-primary:hover { background: var(--accent-dim); }
     .form-error { background: rgba(255,56,96,0.1); border-left: 3px solid var(--red); color: #ff8099; font-family: var(--font-mono); font-size: 0.8rem; padding: 0.65rem; margin-bottom: 1rem; border-radius: var(--radius); }
 
-    /* Responsive Table Styles */
     .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; min-width: 600px; }
     .data-table th { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); text-transform: uppercase; }
@@ -154,9 +157,6 @@
 
     .search-container { position: relative; }
 
-    /* ============================================================
-       RESPONSIVE MOBILE BREAKPOINTS CODE
-       ============================================================ */
     @media (max-width: 850px) {
       html { font-size: 14px; }
       .app-container { flex-direction: column; }
@@ -370,25 +370,29 @@
                   <button class="toggle-btn active" data-mode="buy" id="toggle-buy">BUY</button>
                   <button class="toggle-btn" data-mode="sell" id="toggle-sell">SELL</button>
                 </div>
+                
                 <div class="form-group">
-                  <label class="form-label">
-                    Number of Shares (Decimals Allowed)
-                    <span class="help-tooltip" title="Type the unit volume of shares you wish to trade. For example, 1 means one full share. 0.5 means half a share.">?</span>
-                  </label>
+                  <label class="form-label" id="qty-box-label">Number of Shares (Decimals Allowed)</label>
                   <input type="number" class="form-input" id="trade-qty-input" step="any" min="0.0001" placeholder="e.g. 0.5 or 2" />
+                  
+                  <div id="sell-slider-wrapper" class="hidden">
+                    <div class="slider-row">
+                      <input type="range" class="form-range-input" id="trade-qty-slider" step="0.0001" min="0" value="0" />
+                      <span class="slider-max-lbl" id="slider-max-display">Owned: 0</span>
+                    </div>
+                  </div>
                 </div>
+
                 <div style="background: var(--bg-input); padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem;">
                   <div style="display:flex; justify-content: space-between; margin-bottom: 0.4rem;">
-                    <span style="display:inline-flex; align-items:center; gap:0.35rem;">
+                    <span style="display:inline-flex; align-items:center; gap:0.35rem;" id="calc-preview-label">
                       Total Estimated Cost
-                      <span class="help-tooltip" title="The total amount of cash required to process this transaction (Shares multiplied by current price).">?</span>
                     </span>
                     <span id="prev-cost">$0.00</span>
                   </div>
                   <div style="display:flex; justify-content: space-between; border-top: 1px dashed var(--border-bright); padding-top: 0.4rem;">
                     <span style="display:inline-flex; align-items:center; gap:0.35rem;">
                       Leftover Cash Balance
-                      <span class="help-tooltip" title="The amount of spendable cash remaining in your wallet after finishing this trade.">?</span>
                     </span>
                     <span id="prev-residual">$--</span>
                   </div>
@@ -400,20 +404,8 @@
                 <h3 class="card-title">Market Details</h3>
                 <div style="display:grid; grid-template-columns: 1fr; gap:0.5rem; font-family:var(--font-mono); font-size:0.85rem;">
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Current Market Price:</span><span id="t-stat-price">--</span></div>
-                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
-                    <span style="display:inline-flex; align-items:center; gap:0.35rem;">
-                      Day Low
-                      <span class="help-tooltip" title="The lowest price this specific stock dropped to during today's open market hours.">?</span>
-                    </span>
-                    <span id="t-stat-low">--</span>
-                  </div>
-                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
-                    <span style="display:inline-flex; align-items:center; gap:0.35rem;">
-                      Day High
-                      <span class="help-tooltip" title="The peak highest cost this stock hit during today's open market hours.">?</span>
-                    </span>
-                    <span id="t-stat-high">--</span>
-                  </div>
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day Low:</span><span id="t-stat-low">--</span></div>
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day High:</span><span id="t-stat-high">--</span></div>
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Ticker Tracking Tag:</span><span id="t-stat-rawtoken" style="color: var(--text-secondary); font-size: 0.75rem;">--</span></div>
                 </div>
               </div>
@@ -438,12 +430,7 @@
                   <th>Shares Traded</th>
                   <th>Execution Price</th>
                   <th>Total Cash Value</th>
-                  <th>
-                    <div class="flex-th">
-                      Realized Profit / Loss
-                      <span class="help-tooltip" title="The permanent profit or loss locked into your account cash ledger after selling a stock position.">?</span>
-                    </div>
-                  </th>
+                  <th>Realized Profit / Loss</th>
                 </tr>
               </thead>
               <tbody id="history-logs-table"></tbody>
@@ -634,13 +621,13 @@
 
       syncTradeView() {
         document.getElementById("trade-cash-badge").textContent = "Available Cash: $" + this.activeUser.cash.toFixed(2);
-        document.getElementById("trade-qty-input").value = "";
         if(!this.tradeAsset) {
           document.getElementById("trade-search-input").value = "";
+          document.getElementById("trade-qty-input").value = "";
           document.getElementById("trade-ticker-panel").classList.add("hidden");
         }
         document.getElementById("trade-search-error").classList.add("hidden");
-        this.runTradeCalculationPreview();
+        this.updateInterfaceOrderModeContext();
       },
 
       async executeTickerQuery() {
@@ -651,158 +638,3 @@
         if (!queryText) return;
 
         const res = await fetch(`/api/market/query?query=${encodeURIComponent(queryText)}`);
-        const data = await res.json();
-        
-        if (!res.ok) {
-          errEl.textContent = data.error;
-          errEl.classList.remove("hidden");
-          return;
-        }
-
-        this.tradeAsset = data;
-        document.getElementById("trade-ticker-panel").classList.remove("hidden");
-        
-        document.getElementById("t-display-symbol").textContent = data.cleanName; 
-        document.getElementById("t-display-name").textContent = data.assetClassDescription;
-        document.getElementById("t-display-price").textContent = "$" + data.price.toFixed(2);
-        
-        const chg = document.getElementById("t-display-change");
-        chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
-        chg.className = data.change >= 0 ? "gain" : "loss";
-
-        document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
-        document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
-        document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
-        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
-
-        this.injectTradingViewGraph(data.symbol);
-        this.runTradeCalculationPreview();
-      },
-
-      injectTradingViewGraph(tickerSymbol) {
-        let tradingViewAssetString = tickerSymbol;
-        if(tickerSymbol === "^IXIC") tradingViewAssetString = "NASDAQ:IXIC";
-        if(tickerSymbol === "^NSEI") tradingViewAssetString = "NSE:NIFTY";
-
-        new TradingView.widget({
-          "width": "100%",
-          "height": "100%",
-          "symbol": tradingViewAssetString,
-          "interval": "D",
-          "timezone": "Etc/UTC",
-          "theme": "dark",
-          "style": "1",
-          "locale": "en",
-          "toolbar_bg": "#0d1117",
-          "enable_publishing": false,
-          "hide_side_toolbar": true,
-          "allow_symbol_change": false,
-          "container_id": "tradingview-chart-container"
-        });
-      },
-
-      runTradeCalculationPreview() {
-        if(!this.tradeAsset) {
-          document.getElementById("prev-cost").textContent = "$0.00";
-          document.getElementById("prev-residual").textContent = "$" + this.activeUser.cash.toFixed(2);
-          return;
-        }
-        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
-        const sum = qty * this.tradeAsset.price;
-        const res = this.tradeMode === "buy" ? this.activeUser.cash - sum : this.activeUser.cash + sum;
-
-        document.getElementById("prev-cost").textContent = "$" + sum.toFixed(2);
-        document.getElementById("prev-residual").textContent = "$" + res.toFixed(2);
-        document.getElementById("prev-residual").className = res < 0 ? "loss" : "";
-      },
-
-      async dispatchOrderBlock() {
-        if (!this.tradeAsset) return;
-        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
-        if(qty <= 0) { alert("Please type a valid number of shares to trade."); return; }
-
-        const res = await fetch('/api/trade/execute', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            symbol: this.tradeAsset.symbol,
-            qty: qty,
-            mode: this.tradeMode,
-            price: this.tradeAsset.price
-          })
-        });
-        
-        const data = await res.json();
-        if(!res.ok) {
-          alert(data.error);
-        } else {
-          alert("Order processed successfully!");
-          this.tradeAsset = null;
-          this.switchWorkspaceView("view-portfolio");
-        }
-      },
-
-      async syncLeaderboardView() {
-        const res = await fetch('/api/leaderboard');
-        const dataset = await res.json();
-        const body = document.getElementById("leaderboard-ranking-table");
-        body.innerHTML = "";
-        
-        dataset.forEach((trader, i) => {
-          const tr = document.createElement("tr");
-          tr.innerHTML = `
-            <td><strong>#${i+1}</strong></td>
-            <td>${trader.name} <span style="color:var(--text-dim); font-size:0.75rem;">@${trader.handle}</span></td>
-            <td>$${trader.cash.toFixed(2)}</td>
-            <td class="${trader.returns >= 0 ? 'gain' : 'loss'}">${trader.returns >= 0 ? '+' : ''}${trader.returns.toFixed(2)}%</td>
-          `;
-          body.appendChild(tr);
-        });
-      },
-
-      renderTickerTape() {
-        const container = document.getElementById("app-ticker-tape-container");
-        const tracks = ["AAPL", "MSFT", "TSLA", "NFLX", "NVDA", "AMZN"];
-        container.innerHTML = "";
-        tracks.forEach(t => {
-          const div = document.createElement("div");
-          div.className = "tt-item";
-          div.innerHTML = `<span class="tt-sym">${t}</span> <span>LIVE TRACKING ACTIVE</span>`;
-          container.appendChild(div);
-        });
-      }
-    };
-
-    document.addEventListener("DOMContentLoaded", () => {
-      App.init();
-      document.getElementById("tab-login-toggle").addEventListener("click", () => App.switchAuthTab("login"));
-      document.getElementById("tab-reg-toggle").addEventListener("click", () => App.switchAuthTab("register"));
-      document.getElementById("btn-submit-login").addEventListener("click", () => App.processLogin());
-      document.getElementById("btn-submit-register").addEventListener("click", () => App.processRegister());
-      
-      document.getElementById("btn-logout-action").addEventListener("click", async () => {
-        await fetch('/api/auth/logout', {method: 'POST'});
-        App.activeUser = null;
-        App.tradeAsset = null;
-        document.getElementById("screen-app").classList.add("hidden");
-        document.getElementById("screen-auth").classList.remove("hidden");
-        App.switchAuthTab("login");
-      });
-
-      document.querySelectorAll(".nav-btn").forEach(b => {
-        b.addEventListener("click", (e) => App.switchWorkspaceView(e.target.dataset.target));
-      });
-
-      document.getElementById("btn-fetch-ticker").addEventListener("click", () => App.executeTickerQuery());
-      document.getElementById("toggle-buy").addEventListener("click", (e) => {
-        App.tradeMode = "buy"; e.target.classList.add("active"); document.getElementById("toggle-sell").classList.remove("active"); App.runTradeCalculationPreview();
-      });
-      document.getElementById("toggle-sell").addEventListener("click", (e) => {
-        App.tradeMode = "sell"; e.target.classList.add("active"); document.getElementById("toggle-buy").classList.remove("active"); App.runTradeCalculationPreview();
-      });
-      document.getElementById("trade-qty-input").addEventListener("input", () => App.runTradeCalculationPreview());
-      document.getElementById("btn-dispatch-order").addEventListener("click", () => App.dispatchOrderBlock());
-    });
-  </script>
-</body>
-</html>
