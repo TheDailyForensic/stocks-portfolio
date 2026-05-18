@@ -126,8 +126,6 @@
     .sym-badge { background: var(--accent-glow); border: 1px solid rgba(0,255,136,0.2); color: var(--accent); font-size: 0.75rem; padding: 0.15rem 0.4rem; border-radius: 2px; font-weight: bold; }
     .gain { color: var(--accent); }
     .loss { color: var(--red); }
-    .btn-sm { background: var(--bg-input); border: 1px solid var(--border-bright); color: var(--text-primary); padding: 0.3rem 0.6rem; font-family: var(--font-mono); font-size: 0.75rem; cursor: pointer; border-radius: 2px; text-decoration: none; display: inline-block; }
-    .btn-sm:hover { border-color: var(--accent); color: var(--accent); }
 
     /* ---- TWO COLUMN GRIDS ---- */
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
@@ -148,12 +146,6 @@
     .search-results { position: absolute; top: 100%; left: 0; right: 0; background: var(--bg-elevated); border: 1px solid var(--border-bright); z-index: 900; max-height: 200px; overflow-y: auto; font-family: var(--font-mono); border-radius: 0 0 var(--radius) var(--radius); }
     .search-row { padding: 0.75rem; cursor: pointer; border-bottom: 1px solid var(--border); }
     .search-row:hover { background: var(--bg-hover); color: var(--accent); }
-
-    /* ---- MODAL LAYER CONFIGURATIONS ---- */
-    .modal-overlay { position: fixed; inset: 0; z-index: 2000; background: rgba(0,0,0,0.8); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; }
-    .modal { background: var(--bg-elevated); border: 1px solid var(--border-bright); border-radius: var(--radius-lg); width: min(480px, 92vw); box-shadow: 0 0 30px rgba(0,255,136,0.1); }
-    .modal-header { display: flex; align-items: center; justify-content: space-between; padding: 1rem 1.5rem; border-bottom: 1px solid var(--border); }
-    .modal-footer { display: flex; gap: 0.75rem; justify-content: flex-end; padding: 1rem 1.5rem; border-top: 1px solid var(--border); }
 
     @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
   </style>
@@ -221,7 +213,7 @@
         <li><button class="nav-btn" data-target="view-history">ORDER HISTORIES</button></li>
         <li><button class="nav-btn" data-target="view-leaderboard">LEADERBOARD</button></li>
       </ul>
-      <button class="btn-logout" id="btn-act-logout">CLOSE TERMINAL</button>
+      <button class="btn-logout" id="btn-logout-action">CLOSE TERMINAL</button>
     </nav>
 
     <main class="workspace">
@@ -232,7 +224,7 @@
         </div>
         <div class="kpi-strip">
           <div class="kpi-card">
-            <div class="kpi-lbl">Total Asset Net Net</div>
+            <div class="kpi-lbl">Total Asset Value</div>
             <div class="kpi-val" id="p-kpi-total">$--</div>
           </div>
           <div class="kpi-card">
@@ -252,7 +244,7 @@
           <h2 class="card-title">Open Instrument Positions</h2>
           <table class="data-table">
             <thead>
-              <tr><th>Symbol</th><th>Volume Vol</th><th>Avg Cost Basis</th><th>Spot Market Price</th><th>Net Position Value</th><th>Floating Gains Losses</th></tr>
+              <tr><th>Symbol</th><th>Volume</th><th>Avg Cost Basis</th><th>Spot Market Price</th><th>Net Position Value</th><th>Floating Gains Losses</th></tr>
             </thead>
             <tbody id="portfolio-positions-table"></tbody>
           </table>
@@ -266,8 +258,8 @@
         </div>
         <div class="card search-card">
           <div class="form-group search-container">
-            <label class="form-label">Search equity symbol identifier</label>
-            <input type="text" class="form-input" id="trade-search-input" placeholder="Type symbol ticker (e.g. AAPL, TSLA, NVDA)..." autocomplete="off" />
+            <label class="form-label">Search or enter any stock symbol ticker</label>
+            <input type="text" class="form-input" id="trade-search-input" placeholder="Type ANY symbol ticker (e.g. AAPL, AMD, INTC, GE)..." autocomplete="off" />
             <div class="search-results hidden" id="trade-search-dropdown"></div>
           </div>
         </div>
@@ -331,12 +323,12 @@
 
       <section id="view-leaderboard" class="view-panel hidden">
         <div class="view-header">
-          <div><h1 class="view-title">Rank Leaderboard</h1><p class="view-sub">Localized cross-profile evaluation parameters sorted by performance yield percentage</p></div>
+          <div><h1 class="view-title">Rank Leaderboard</h1><p class="view-sub">Cross-profile evaluation parameters sorted by performance yield percentage</p></div>
         </div>
         <div class="card">
           <table class="data-table">
             <thead>
-              <tr><th>Rank Rank</th><th>Trader Profile</th><th>Liquid Cash</th><th>Performance Yield Percentage</th></tr>
+              <tr><th>Rank</th><th>Trader Profile</th><th>Liquid Cash</th><th>Performance Yield Percentage</th></tr>
             </thead>
             <tbody id="leaderboard-ranking-table"></tbody>
           </table>
@@ -349,11 +341,6 @@
   </div>
 
   <script>
-    /**
-     * STOCKSIM CENTRAL ENGINE
-     * Hardened database routines matching local execution sandboxes
-     */
-
     // LOCAL DATA LAYER BACKBONE
     const EngineDB = {
       mockMarket: {
@@ -376,30 +363,60 @@
         return Array.from(new Uint8Array(hash)).map(b => b.toString(16).padStart(2, "0")).join("");
       },
 
+      // DYNAMIC NODE GENERATION ENGINE FOR ANY AND ALL TICKERS
       getAsset(symbol) {
         const s = symbol.toUpperCase().trim();
-        return this.mockMarket[s] || { name: s + " Index Node", price: 100.00, change: 0.00, pct: 0.00, open: 100.00, high: 100.00, low: 100.00, prev: 100.00, about: "Custom market tracking simulation block asset allocation parameters." };
+        if (this.mockMarket[s]) return this.mockMarket[s];
+
+        // Seed calculations generate unique, persistent values for custom tickers typed by students
+        let hashSeed = 0;
+        for (let i = 0; i < s.length; i++) {
+          hashSeed = s.charCodeAt(i) + ((hashSeed << 5) - hashSeed);
+        }
+        
+        const generatedBasePrice = Math.abs((hashSeed % 280) + 20) + 0.50;
+        const generatedChange = (hashSeed % 100) / 25;
+        const pctCalculated = (generatedChange / generatedBasePrice) * 100;
+
+        return {
+          name: s + " Global Equity Asset",
+          price: generatedBasePrice,
+          change: generatedChange,
+          pct: pctCalculated,
+          open: generatedBasePrice - (generatedChange * 0.4),
+          high: generatedBasePrice + Math.abs(generatedChange),
+          low: generatedBasePrice - Math.abs(generatedChange),
+          prev: generatedBasePrice - generatedChange,
+          about: "Dynamic sandbox paper security ledger provisioned for token index reference tracking under simulated conditions."
+        };
       },
 
       search(query) {
         const q = query.toUpperCase().trim();
         if(!q) return [];
-        return Object.keys(this.mockMarket)
+        
+        // Return standard selections first
+        const baseMatches = Object.keys(this.mockMarket)
           .filter(k => k.includes(q) || this.mockMarket[k].name.toUpperCase().includes(q))
           .map(k => ({ symbol: k, name: this.mockMarket[k].name, price: this.mockMarket[k].price }));
+
+        // If nothing is found or it's a completely customized sequence, append it dynamically to the search box
+        if (baseMatches.length === 0 && q.length <= 5 && /^[A-Z]+$/.test(q)) {
+          const generatedNode = this.getAsset(q);
+          baseMatches.push({ symbol: q, name: generatedNode.name, price: generatedNode.nodePrice || generatedNode.price });
+        }
+        return baseMatches;
       }
     };
 
-    // SYSTEM APPLICATION ENGINE CONTROL
+    // APPLICATION MODULE
     const App = {
       activeUser: null,
       tradeMode: "buy",
       tradeAsset: null,
 
       async init() {
-        // Build background tape loops instantly
         this.renderTickerTape();
-
         const session = EngineDB.getSession();
         if(session) {
           const users = EngineDB.getUsers();
@@ -468,7 +485,6 @@
         document.getElementById("screen-app").classList.remove("hidden");
         document.getElementById("sb-user-display").textContent = this.activeUser.displayName;
         document.getElementById("sb-user-handle").textContent = "@" + this.activeUser.username;
-        
         this.switchWorkspaceView("view-portfolio");
       },
 
@@ -544,9 +560,10 @@
       },
 
       loadTradingTicker(symbol) {
-        this.tradeAsset = EngineDB.getAsset(symbol);
+        const sym = symbol.toUpperCase().trim();
+        this.tradeAsset = EngineDB.getAsset(sym);
         document.getElementById("trade-ticker-panel").classList.remove("hidden");
-        document.getElementById("t-display-symbol").textContent = symbol;
+        document.getElementById("t-display-symbol").textContent = sym;
         document.getElementById("t-display-name").textContent = this.tradeAsset.name;
         document.getElementById("t-display-price").textContent = "$" + this.tradeAsset.price.toFixed(2);
         
@@ -588,7 +605,7 @@
         const liveUser = users[this.activeUser.username];
 
         if(this.tradeMode === "buy") {
-          if(liveUser.cash < totalCost) { alert("Liquidation processing failed: Insufficient liquid parameter bounds."); return; }
+          if(liveUser.cash < totalCost) { alert("Liquidation processing failed: Insufficient cash balance."); return; }
           liveUser.cash -= totalCost;
           if(!liveUser.holdings[this.tradeAsset.symbol]) liveUser.holdings[this.tradeAsset.symbol] = { shares: 0, cost: 0 };
           
@@ -676,7 +693,7 @@
       }
     };
 
-    // SYSTEM INTERACTION BINDINGS INTERFACES ROUTING
+    // INTIALIZATION CAPTURE BINDINGS
     document.addEventListener("DOMContentLoaded", () => {
       App.init();
 
@@ -685,7 +702,7 @@
       document.getElementById("btn-submit-login").addEventListener("click", () => App.processLogin());
       document.getElementById("btn-submit-register").addEventListener("click", () => App.processRegister());
       
-      document.getElementById("btn-act-logout").addEventListener("click", () => {
+      document.getElementById("btn-logout-action").addEventListener("click", () => {
         EngineDB.setSession(null);
         App.activeUser = null;
         document.getElementById("screen-app").classList.add("hidden");
@@ -697,20 +714,24 @@
         b.addEventListener("click", (e) => App.switchWorkspaceView(e.target.dataset.target));
       });
 
-      // Search Autocomplete Dynamic Handling
+      // Search Autocomplete Dynamic Input Processing
       const searchInput = document.getElementById("trade-search-input");
       const dropdown = document.getElementById("trade-search-dropdown");
+      
       searchInput.addEventListener("input", () => {
-        const q = searchInput.value;
+        const rawQuery = searchInput.value;
+        const q = rawQuery.toUpperCase().replace(/[^A-Z]/g, "").trim();
+        
         if(q.length < 1) { dropdown.classList.add("hidden"); return; }
+        
         const hits = EngineDB.search(q);
-        if(hits.length === 0) { dropdown.classList.add("hidden"); return; }
         dropdown.innerHTML = "";
         dropdown.classList.remove("hidden");
+        
         hits.forEach(h => {
           const div = document.createElement("div");
           div.className = "search-row";
-          div.innerHTML = `<strong>${h.symbol}</strong> // ${h.name} ($${h.price})`;
+          div.innerHTML = `<strong>${h.symbol}</strong> // ${h.name} ($${h.price.toFixed(2)})`;
           div.addEventListener("click", () => {
             App.loadTradingTicker(h.symbol);
             dropdown.classList.add("hidden");
