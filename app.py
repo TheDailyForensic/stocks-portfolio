@@ -1,402 +1,235 @@
 import os
-import sqlite3
-from flask import Flask, request, jsonify, session
+import json
+import requests
 import yfinance as yf
-from groq import Groq
+from flask import Flask, render_template, request, jsonify, session
+from openai import OpenAI
 
 app = Flask(__name__)
-app.secret_key = os.environ.get("FLASK_SECRET_KEY", "super-desk-terminal-key-999")
+app.secret_key = "DEVELOPMENT_SECRET_KEY_KEEP_THIS_SAFE"
 
-# Initialize Groq client
-# Ensure GROQ_API_KEY is set in your environment variables
-groq_client = Groq(api_key=os.environ.get("GROQ_API_KEY"))
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
 
-DB_FILE = "stocksim.db"
+groq_client = OpenAI(
+    base_url="https://api.groq.com/openai/v1",
+    api_key=GROQ_API_KEY
+)
 
-def get_db_connection():
-    conn = sqlite3.connect(DB_FILE)
-    conn.row_factory = sqlite3.Row
-    return conn
+MOCK_USERS_DB = {}
 
-def init_db():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    # Users Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS users (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            username TEXT UNIQUE NOT NULL,
-            display_name TEXT NOT NULL,
-            password TEXT NOT NULL,
-            cash REAL NOT NULL
-        )
-    ''')
-    # Positions Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS positions (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            symbol TEXT NOT NULL,
-            shares REAL NOT NULL,
-            avg_cost REAL NOT NULL,
-            raw_token TEXT NOT NULL,
-            UNIQUE(user_id, symbol)
-        )
-    ''')
-    # History Table
-    cursor.execute('''
-        CREATE TABLE IF NOT EXISTS history (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            user_id INTEGER NOT NULL,
-            timestamp TEXT DEFAULT CURRENT_TIMESTAMP,
-            type TEXT NOT NULL,
-            symbol TEXT NOT NULL,
-            shares REAL NOT NULL,
-            price REAL NOT NULL,
-            total_sum REAL NOT NULL,
-            realized_pl REAL NOT NULL
-        )
-    ''')
-    conn.commit()
-    conn.close()
+# Helper decoder to quickly clean up raw system tags into human text arrays
+def get_clean_name_mapping(ticker: str) -> str:
+    if ticker == "^IXIC": return "NASDAQ Composite"
+    if ticker == "^NSEI": return "NIFTY 50"
+    if ticker.endswith(".NS"): return ticker.replace(".NS", "")
+    return ticker
 
-# Initialize Database Architecture
-init_db()
-
-def interpret_asset_query(user_raw_input):
-    """
-    Leverages Groq AI to process organic English and output clean stock asset info
+def interpret_asset_query(user_input: str) -> dict:
+    system_instruction = """
+    You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
+    
+    Rules:
+    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA). cleanName is standard ticker. description is Company Name.
+    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS). cleanName is standard asset without .NS. description is Company Name.
+    3. For Nasdaq Index, ticker is '^IXIC', provider is 'yahoo', cleanName is 'NASDAQ Composite', description is 'US Tech Index'.
+    4. For Nifty 50 Index, ticker is '^NSEI', provider is 'yahoo', cleanName is 'NIFTY 50', description is 'NSE National Index'.
+    
+    Respond ONLY with a valid JSON matching this schema:
+    {"ticker": "STRING", "provider": "finnhub" or "yahoo", "cleanName": "STRING", "description": "STRING", "error": false}
     """
     try:
-        system_prompt = (
-            "You are a financial parsing router. Convert the user input into a single financial token "
-            "compatible with Yahoo Finance (yfinance). Examples: 'Apple' -> 'AAPL', 'Nvidia' -> 'NVDA', "
-            "'Nifty index' -> '^NSEI', 'Reliance' -> 'RELIANCE.NS'. "
-            "Respond with ONLY the exact string of the symbol. Do not include spaces, markdown formatting, "
-            "punctuation, or extra words."
-        )
-        completion = groq_client.chat.completions.create(
-            model="llama3-8b-8192",
+        response = groq_client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            response_format={"type": "json_object"},
             messages=[
-                {"role": "system", "content": system_prompt},
-                {"role": "user", "content": user_raw_input}
-            ],
-            temperature=0.0,
-            max_tokens=10
+                {"role": "system", "content": system_instruction},
+                {"role": "user", "content": f"Query: '{user_input}'"}
+            ]
         )
-        return completion.choices[0].message.content.strip()
+        return json.loads(response.choices[0].message.content)
     except Exception:
-        # Emergency raw fallback string assumptions if API drop matches
-        cleaned = user_raw_input.strip().upper()
-        return cleaned
+        return {"ticker": "", "provider": "", "cleanName": "Unknown", "description": "Asset Class Book", "error": True}
+
+def fetch_live_quote(ticker: str, provider: str):
+    if provider == "finnhub":
+        url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
+        try:
+            r = requests.get(url).json()
+            if r.get('c', 0) == 0: return None
+            return {
+                "symbol": ticker, "price": r['c'], "change": r.get('d', 0),
+                "pct": r.get('dp', 0), "low": r.get('l', r['c']),
+                "high": r.get('h', r['c']), "prev": r.get('pc', r['c']), "currency": "USD"
+            }
+        except: return None
+    else:
+        try:
+            t = yf.Ticker(ticker)
+            price = t.fast_info['last_price']
+            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD/Points"
+            return {
+                "symbol": ticker, "price": price, "change": 0, "pct": 0,
+                "low": price, "high": price, "prev": price, "currency": currency
+            }
+        except: return None
 
 @app.route('/')
-def serve_index():
-    # Helper to stream static file via absolute path pointers cleanly
-    with open("templates/index.html", "r") as f:
-        return f.read()
+def index():
+    return render_template('index.html')
 
 @app.route('/api/auth/register', methods=['POST'])
-def auth_register():
-    data = request.json or {}
-    username = data.get("username", "").strip().lower()
-    display_name = data.get("displayName", "").strip()
-    password = data.get("password", "").strip()
+def register():
+    data = request.json
+    username = data.get('username', '').lower().strip()
+    display_name = data.get('displayName', '').strip()
+    password = data.get('password', '').strip()
+    
+    if not username or not display_name or not password:
+        return jsonify({"error": "Please enter a username, display name, and password."}), 400
+    if len(password) < 4:
+        return jsonify({"error": "Password must be at least 4 characters long."}), 400
+    if username in MOCK_USERS_DB:
+        return jsonify({"error": "Username is already taken."}), 400
 
-    if not username or not display_name or len(password) < 4:
-        return jsonify({"error": "Invalid profile entry details. Password must be >= 4 chars."}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    try:
-        cursor.execute(
-            "INSERT INTO users (username, display_name, password, cash) VALUES (?, ?, ?, ?)",
-            (username, display_name, password, 10000.0)
-        )
-        conn.commit()
-        # Fetch newly created user ID
-        cursor.execute("SELECT id, username, display_name, cash FROM users WHERE username = ?", (username,))
-        user = cursor.fetchone()
-        session["user_id"] = user["id"]
-        return jsonify({"username": user["username"], "displayName": user["display_name"], "cash": user["cash"]})
-    except sqlite3.IntegrityError:
-        return jsonify({"error": "Operator profile identification handle already registered."}), 400
-    finally:
-        conn.close()
+    MOCK_USERS_DB[username] = {
+        "username": username, "displayName": display_name, "password": password,
+        "cash": 10000.00, "holdings": {}, "history": []
+    }
+    session['user'] = username
+    user_view = MOCK_USERS_DB[username].copy()
+    del user_view['password']
+    return jsonify(user_view)
 
 @app.route('/api/auth/login', methods=['POST'])
-def auth_login():
-    data = request.json or {}
-    username = data.get("username", "").strip().lower()
-    password = data.get("password", "").strip()
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM users WHERE username = ? AND password = ?", (username, password))
-    user = cursor.fetchone()
-    conn.close()
-
-    if not user:
-        return jsonify({"error": "Access Denied. Verification keys mismatch."}), 401
-
-    session["user_id"] = user["id"]
-    return jsonify({"username": user["username"], "displayName": user["display_name"], "cash": user["cash"]})
+def login():
+    data = request.json
+    username = data.get('username', '').lower().strip()
+    password = data.get('password', '').strip()
+    
+    if username in MOCK_USERS_DB and MOCK_USERS_DB[username]['password'] == password:
+        session['user'] = username
+        user_view = MOCK_USERS_DB[username].copy()
+        del user_view['password']
+        return jsonify(user_view)
+        
+    return jsonify({"error": "Incorrect username or password."}), 401
 
 @app.route('/api/auth/logout', methods=['POST'])
-def auth_logout():
-    session.clear()
-    return jsonify({"status": "logged out"})
-
-@app.route('/api/user/portfolio', methods=['GET'])
-def get_portfolio():
-    uid = session.get("user_id")
-    if not uid:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    
-    # Get User Data
-    cursor.execute("SELECT cash FROM users WHERE id = ?", (uid,))
-    user_row = cursor.fetchone()
-    cash = user_row["cash"]
-
-    # Get Active Stock Positions
-    cursor.execute("SELECT * FROM positions WHERE user_id = ? AND shares > 0", (uid,))
-    db_positions = cursor.fetchall()
-
-    positions = []
-    invested_market_value = 0.0
-
-    for pos in db_positions:
-        symbol = pos["symbol"]
-        shares = pos["shares"]
-        avg_cost = pos["avg_cost"]
-        raw_token = pos["raw_token"]
-
-        # Fetch Live Current Pricing Quotes from yfinance
-        current_price = avg_cost
-        try:
-            ticker = yf.Ticker(symbol)
-            # Use fast_info if available, fallback to history or info mapping
-            current_price = ticker.fast_info.last_price
-        except Exception:
-            try:
-                hist = ticker.history(period="1d")
-                if not hist.empty:
-                    current_price = hist['Close'].iloc[-1]
-            except Exception:
-                pass
-
-        market_value = shares * current_price
-        invested_market_value += market_value
-        gain_loss = market_value - (shares * avg_cost)
-
-        positions.append({
-            "symbol": symbol,
-            "rawToken": raw_token,
-            "shares": shares,
-            "avgCost": avg_cost,
-            "currentPrice": current_price,
-            "marketValue": market_value,
-            "gainLoss": gain_loss
-        })
-
-    net_value = cash + invested_market_value
-    returns_pct = ((net_value - 10000.0) / 10000.0) * 100.0
-
-    # Get Historical Records
-    cursor.execute("SELECT * FROM history WHERE user_id = ? ORDER BY id DESC", (uid,))
-    db_history = cursor.fetchall()
-    history_logs = []
-    for h in db_history:
-        history_logs.append({
-            "date": h["timestamp"],
-            "type": h["type"],
-            "cleanSymbol": h["symbol"],
-            "shares": h["shares"],
-            "price": h["price"],
-            "sum": h["total_sum"],
-            "pl": h["realized_pl"]
-        })
-
-    conn.close()
-
-    return jsonify({
-        "cash": cash,
-        "invested": invested_market_value,
-        "netValue": net_value,
-        "returns": returns_pct,
-        "positions": positions,
-        "history": history_logs
-    })
+def logout():
+    session.pop('user', None)
+    return jsonify({"success": True})
 
 @app.route('/api/market/query', methods=['GET'])
 def query_market():
-    uid = session.get("user_id")
-    if not uid:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    query_str = request.args.get("query", "").strip()
-    if not query_str:
-        return jsonify({"error": "Empty tracking query parameter received."}), 400
-
-    # AI determines ticker matching string symbol sequence
-    symbol = interpret_asset_query(query_str)
-
-    try:
-        ticker = yf.Ticker(symbol)
-        info = ticker.fast_info
+    query_text = request.args.get('query', '')
+    if not query_text:
+        return jsonify({"error": "Please type a search query."}), 400
         
-        live_price = info.last_price
-        open_price = info.open if info.open else live_price
-        day_high = info.day_high if info.day_high else live_price
-        day_low = info.day_low if info.day_low else live_price
+    ai_decision = interpret_asset_query(query_text)
+    if ai_decision.get('error') or not ai_decision.get('ticker'):
+        return jsonify({"error": "Could not identify that stock or index name."}), 404
+
+    quote = fetch_live_quote(ai_decision['ticker'], ai_decision['provider'])
+    if not quote:
+        return jsonify({"error": "Failed to pull live price. Please try again."}), 404
         
-        change = live_price - open_price
-        pct = (change / open_price) * 100.0 if open_price != 0 else 0.0
+    quote["cleanName"] = ai_decision.get("cleanName", ai_decision["ticker"])
+    quote["assetClassDescription"] = ai_decision.get("description", "Market Asset")
+    return jsonify(quote)
 
-        # Check user's current holdings for this stock to pass to the client
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        cursor.execute("SELECT shares FROM positions WHERE user_id = ? AND symbol = ?", (uid, symbol))
-        pos_row = cursor.fetchone()
-        shares_owned = pos_row["shares"] if pos_row else 0.0
-        conn.close()
-
-        return jsonify({
-            "symbol": symbol,
-            "cleanName": symbol,
-            "assetClassDescription": "Global Market Instrument Tracker Quote",
-            "price": live_price,
-            "change": change,
-            "pct": pct,
-            "high": day_high,
-            "low": day_low,
-            "sharesOwned": shares_owned
+@app.route('/api/user/portfolio', methods=['GET'])
+def get_portfolio():
+    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
+        return jsonify({"error": "Session expired. Please log in again."}), 401
+    
+    user = MOCK_USERS_DB[session['user']]
+    invested = 0
+    positions_list = []
+    
+    for sym, holding in list(user['holdings'].items()):
+        ai_meta = interpret_asset_query(sym)
+        quote = fetch_live_quote(sym, ai_meta.get('provider', 'finnhub'))
+        current_price = quote['price'] if quote else holding['cost']
+        
+        mkt_val = holding['shares'] * current_price
+        cost_basis = holding['shares'] * holding['cost']
+        gl = mkt_val - cost_basis
+        invested += mkt_val
+        
+        positions_list.append({
+            "symbol": ai_meta.get("cleanName", sym), 
+            "rawToken": sym, # Kept safe for click data transmission logic tracking
+            "shares": holding['shares'], "avgCost": holding['cost'],
+            "currentPrice": current_price, "marketValue": mkt_val, "gainLoss": gl
         })
-    except Exception as e:
-        return jsonify({"error": f"Asset parsing matrix engine timed out or invalid ticker: {symbol}"}), 404
+        
+    net_val = user['cash'] + invested
+    yield_pct = ((net_val - 10000.00) / 10000.00) * 100
+    
+    return jsonify({
+        "cash": user['cash'], "invested": invested, "netValue": net_val,
+        "returns": yield_pct, "positions": positions_list, "history": user['history']
+    })
 
 @app.route('/api/trade/execute', methods=['POST'])
 def execute_trade():
-    uid = session.get("user_id")
-    if not uid:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data = request.json or {}
-    symbol = data.get("symbol", "").strip().upper()
-    try:
-        qty = float(data.get("qty", 0))
-    except ValueError:
-        return jsonify({"error": "Invalid volume quantity specified."}), 400
+    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
+        return jsonify({"error": "Session expired. Please log in again."}), 401
         
-    mode = data.get("mode", "").lower() # "buy" or "sell"
-    execution_price = float(data.get("price", 0))
-
-    if qty <= 0 or not symbol or mode not in ["buy", "sell"]:
-        return jsonify({"error": "Transaction parameter layout structure broken."}), 400
-
-    conn = get_db_connection()
-    cursor = conn.cursor()
-
-    # Get absolute current balance status lock
-    cursor.execute("SELECT cash FROM users WHERE id = ?", (uid,))
-    user_row = cursor.fetchone()
-    current_cash = user_row["cash"]
-
-    # Get active inventory tracking data for asset
-    cursor.execute("SELECT * FROM positions WHERE user_id = ? AND symbol = ?", (uid, symbol))
-    position = cursor.fetchone()
-    current_shares = position["shares"] if position else 0.0
-    current_avg_cost = position["avg_cost"] if position else 0.0
-
-    total_sum = qty * execution_price
-    realized_pl = 0.0
-
-    if mode == "buy":
-        if current_cash < total_sum:
-            conn.close()
-            return jsonify({"error": "Insufficient wallet funding assets available."}), 400
-
-        new_cash = current_cash - total_sum
-        new_shares = current_shares + qty
-        # Calculate new dollar cost average value
-        new_avg = ((current_shares * current_avg_cost) + total_sum) / new_shares if new_shares > 0 else 0.0
-
-        if position:
-            cursor.execute("UPDATE positions SET shares = ?, avg_cost = ? WHERE id = ?", (new_shares, new_avg, position["id"]))
-        else:
-            cursor.execute("INSERT INTO positions (user_id, symbol, shares, avg_cost, raw_token) VALUES (?, ?, ?, ?, ?)",
-                           (uid, symbol, new_shares, new_avg, symbol))
-
-    else: # SELL operations execution branch
-        if current_shares < qty:
-            conn.close()
-            return jsonify({"error": f"Short sell blocked. Wallet only holds {current_shares} shares."}), 400
-
-        new_cash = current_cash + total_sum
-        new_shares = current_shares - qty
-        realized_pl = (execution_price - current_avg_cost) * qty
-
-        if new_shares == 0:
-            cursor.execute("DELETE FROM positions WHERE id = ?", (position["id"],))
-        else:
-            cursor.execute("UPDATE positions SET shares = ? WHERE id = ?", (new_shares, position["id"]))
-
-    # Commit updated balances to persistence model
-    cursor.execute("UPDATE users SET cash = ? WHERE id = ?", (new_cash, uid))
+    data = request.json
+    symbol = data.get('symbol', '').upper()
+    qty = float(data.get('qty', 0))
+    mode = data.get('mode', 'buy')
+    price = float(data.get('price', 0))
     
-    # Track permanent historical log block ledger entries
-    cursor.execute(
-        "INSERT INTO history (user_id, type, symbol, shares, price, total_sum, realized_pl) VALUES (?, ?, ?, ?, ?, ?, ?)",
-        (uid, mode.upper(), symbol, qty, execution_price, total_sum, realized_pl)
-    )
-
-    conn.commit()
-    conn.close()
-    return jsonify({"status": "success", "newCash": new_cash})
+    if qty <= 0 or price <= 0:
+        return jsonify({"error": "Invalid order quantity or market price."}), 400
+        
+    user = MOCK_USERS_DB[session['user']]
+    total_cost = qty * price
+    clean_sym_text = get_clean_name_mapping(symbol)
+    
+    if mode == 'buy':
+        if user['cash'] < total_cost:
+            return jsonify({"error": "Insufficient funds. You do not have enough cash for this order."}), 400
+        user['cash'] -= total_cost
+        if symbol not in user['holdings']:
+            user['holdings'][symbol] = {"shares": 0.0, "cost": 0.0}
+            
+        ex_qty = user['holdings'][symbol]['shares']
+        ex_cost = user['holdings'][symbol]['cost']
+        user['holdings'][symbol]['shares'] += qty
+        user['holdings'][symbol]['cost'] = ((ex_qty * ex_cost) + total_cost) / user['holdings'][symbol]['shares']
+        
+        user['history'].insert(0, {"date": "Just Now", "type": "BUY", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": 0})
+    else:
+        if symbol not in user['holdings'] or (user['holdings'][symbol]['shares'] + 0.00001) < qty:
+            return jsonify({"error": "You do not own enough shares to fulfill this sale."}), 400
+            
+        cost_sold = qty * user['holdings'][symbol]['cost']
+        net_pl = total_cost - cost_sold
+        user['cash'] += total_cost
+        user['holdings'][symbol]['shares'] -= qty
+        
+        user['history'].insert(0, {"date": "Just Now", "type": "SELL", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": net_pl})
+        if user['holdings'][symbol]['shares'] <= 0.0001:
+            del user['holdings'][symbol]
+            
+    return jsonify({"success": True})
 
 @app.route('/api/leaderboard', methods=['GET'])
-def get_leaderboard():
-    conn = get_db_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, username, display_name, cash FROM users")
-    users = cursor.fetchall()
-
-    leaderboard = []
-    for u in users:
-        uid = u["id"]
-        cursor.execute("SELECT shares, avg_cost, symbol FROM positions WHERE user_id = ?", (uid,))
-        positions = cursor.fetchall()
-
-        invested_value = 0.0
-        for pos in positions:
-            symbol = pos["symbol"]
-            shares = pos["shares"]
-            
-            # Simple caching layer lookups for pricing metrics
-            current_price = pos["avg_cost"]
-            try:
-                current_price = yf.Ticker(symbol).fast_info.last_price
-            except:
-                pass
-            invested_value += (shares * current_price)
-
-        total_net = u["cash"] + invested_value
-        returns_pct = ((total_net - 10000.0) / 10000.0) * 100.0
-
-        leaderboard.append({
-            "name": u["display_name"],
-            "handle": u["username"],
-            "cash": u["cash"],
-            "returns": returns_pct
-        })
-
-    conn.close()
-    # Sort descending by high scoreboard returns metric outputs
-    leaderboard = sorted(leaderboard, key=lambda x: x["returns"], reverse=True)
-    return jsonify(leaderboard)
+def leaderboard():
+    board = []
+    for k, v in MOCK_USERS_DB.items():
+        invested = 0
+        for sym, holding in v['holdings'].items():
+            invested += holding['shares'] * holding['cost']
+        net_value = v['cash'] + invested
+        returns_pct = ((net_value - 10000.00) / 10000.00) * 100
+        board.append({"name": v['displayName'], "handle": k, "cash": v['cash'], "returns": returns_pct})
+    board = sorted(board, key=lambda x: x['returns'], reverse=True)
+    return jsonify(board)
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
+    app.run(debug=True)
