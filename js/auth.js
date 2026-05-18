@@ -63,7 +63,8 @@ const Auth = {
 
   logout() {
     localStorage.removeItem("stocksim_session");
-    window.location.href = "../index.html";
+    // Relative exit pathway directly to root landing page asset
+    window.location.href = "./../index.html";
   },
 
   saveUserData(user) {
@@ -77,7 +78,7 @@ const Auth = {
     if (!user) {
       const path = window.location.pathname;
       if (!path.endsWith("index.html") && path !== "/") {
-        window.location.href = "../index.html";
+        window.location.href = "./../index.html";
       }
     }
     return user;
@@ -87,11 +88,15 @@ const Auth = {
 // Global Initialization Hooks
 document.addEventListener("DOMContentLoaded", () => {
   const user = Auth.getActiveUser();
-  const isIndex = window.location.pathname.endsWith("index.html") || window.location.pathname === "/";
+  const path = window.location.pathname;
+  // Dynamic validation matching current local server context routing
+  const isIndex = path.endsWith("index.html") || path.endsWith("/");
 
   if (!user && !isIndex) {
-    window.location.href = "../index.html";
+    // Relative fallback redirection execution
+    window.location.href = "./../index.html";
   } else if (user && isIndex) {
+    // Relative dashboard entry acceleration path
     window.location.href = "html/dashboard.html";
   }
 
