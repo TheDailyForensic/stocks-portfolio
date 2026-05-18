@@ -119,6 +119,7 @@
     .loss { color: var(--red); }
 
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .trade-layout-grid { display: grid; grid-template-columns: 1.4fr 0.8fr; gap: 1.5rem; }
     .trade-toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg-input); padding: 0.2rem; border-radius: var(--radius); margin-bottom: 1rem; border: 1px solid var(--border); }
     .toggle-btn { background: transparent; border: none; color: var(--text-dim); padding: 0.5rem; font-family: var(--font-display); font-size: 1rem; cursor: pointer; border-radius: 2px; }
     .toggle-btn.active[data-mode="buy"] { background: var(--accent); color: #000; font-weight: bold; }
@@ -130,8 +131,11 @@
     .tt-item { padding: 0 1.5rem; display: inline-flex; align-items: center; gap: 0.5rem; }
     .tt-sym { color: var(--accent); font-weight: bold; }
 
+    /* Visual Chart Container Metrics */
+    .chart-box-wrapper { width: 100%; height: 380px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; }
+
     .search-container { position: relative; }
-    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } }
+    @media (max-width: 1024px) { .trade-layout-grid { grid-template-columns: 1fr; } .two-col { grid-template-columns: 1fr; } }
   </style>
 </head>
 <body>
@@ -155,6 +159,10 @@
           <label class="form-label">Trader Handle</label>
           <input type="text" class="form-input" id="in-login-user" placeholder="handle_id" />
         </div>
+        <div class="form-group">
+          <label class="form-label">Password Verification Vector</label>
+          <input type="password" class="form-input" id="in-login-pass" placeholder="••••••••" />
+        </div>
         <div class="form-error hidden" id="login-error-box"></div>
         <button class="btn-primary" id="btn-submit-login">INITIALIZE SESSION</button>
       </div>
@@ -167,6 +175,10 @@
         <div class="form-group">
           <label class="form-label">Display Signature Name</label>
           <input type="text" class="form-input" id="in-reg-display" placeholder="Operator Name" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">Set Password Key</label>
+          <input type="password" class="form-input" id="in-reg-pass" placeholder="min 4 characters" />
         </div>
         <div class="form-error hidden" id="reg-error-box"></div>
         <button class="btn-primary" id="btn-submit-register">PROVISION POSITION ($10,000)</button>
@@ -234,20 +246,20 @@
         </div>
         <div class="card search-card">
           <div class="form-group search-container">
-            <label class="form-label">Search anything (e.g. "nvidia price", "what is apple stock doing", "nifty fifty")</label>
+            <label class="form-label">Search anything (e.g. "nvidia price", "what is apple stock doing", "nasdaq index")</label>
             <div style="display: flex; gap: 0.5rem;">
               <input type="text" class="form-input" id="trade-search-input" placeholder="Ask Groq AI for an asset..." autocomplete="off" />
-              <button class="btn-primary" id="btn-fetch-ticker" style="width: auto; padding: 0 1.5rem;">QUERY</button>
+              <button class="btn-primary" id="btn-fetch-ticker" style="width: auto; padding: 0 1.5rem;">QUERY ENGINE</button>
             </div>
             <div id="trade-search-error" class="form-error hidden" style="margin-top: 0.5rem; margin-bottom: 0;"></div>
           </div>
         </div>
 
         <div id="trade-ticker-panel" class="hidden">
-          <div class="card two-col" style="background: linear-gradient(145deg, var(--bg-card), var(--bg-elevated)); border-left: 4px solid var(--accent);">
+          <div class="card two-col" style="background: linear-gradient(145deg, var(--bg-card), var(--bg-elevated)); border-left: 4px solid var(--accent); margin-bottom: 1.5rem;">
             <div>
               <span class="sym-badge" style="font-size: 1.4rem; padding: 0.25rem 0.75rem;" id="t-display-symbol">--</span>
-              <h2 style="font-family: var(--font-display); font-size: 1.8rem; margin-top: 0.5rem;">Live Market Asset Quote</h2>
+              <h2 style="font-family: var(--font-display); font-size: 1.8rem; margin-top: 0.5rem;" id="t-display-name">Live Market Asset Quote</h2>
             </div>
             <div style="text-align: right;">
               <div style="font-family: var(--font-mono); font-size: 2rem; font-weight: bold;" id="t-display-price">$--</div>
@@ -255,32 +267,44 @@
             </div>
           </div>
 
-          <div class="two-col">
-            <div class="card">
-              <h3 class="card-title">Dispatch Order Execution</h3>
-              <div class="trade-toggle">
-                <button class="toggle-btn active" data-mode="buy" id="toggle-buy">BUY</button>
-                <button class="toggle-btn" data-mode="sell" id="toggle-sell">SELL</button>
-              </div>
-              <div class="form-group">
-                <label class="form-label">Share Allocation Quantity</label>
-                <input type="number" class="form-input" id="trade-qty-input" min="1" step="1" placeholder="0" />
-              </div>
-              <div style="background: var(--bg-input); padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem;">
-                <div style="display:flex; justify-content: space-between; margin-bottom: 0.4rem;"><span>Settlement Quote Cost:</span><span id="prev-cost">$--</span></div>
-                <div style="display:flex; justify-content: space-between; border-top: 1px dashed var(--border-bright); padding-top: 0.4rem;"><span>Capital Residual Balance:</span><span id="prev-residual">$--</span></div>
-              </div>
-              <button class="btn-primary" id="btn-dispatch-order">TRANSMIT ORDER BLOCK</button>
-            </div>
-            <div class="card">
-              <h3 class="card-title">Asset Specification Matrix</h3>
-              <div style="display:grid; grid-template-columns: 1fr; gap:0.5rem; font-family:var(--font-mono); font-size:0.85rem;">
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Spot Execution Price:</span><span id="t-stat-price">--</span></div>
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day Low Bounds:</span><span id="t-stat-low">--</span></div>
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day High Bounds:</span><span id="t-stat-high">--</span></div>
-                <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Previous Session Close:</span><span id="t-stat-prev">--</span></div>
+          <div class="trade-layout-grid">
+            
+            <div class="card" style="display: flex; flex-direction: column;">
+              <h3 class="card-title">Realtime Market Chart</h3>
+              <div class="chart-box-wrapper" id="tradingview-chart-container">
+                <span style="color: var(--text-dim); font-family: var(--font-mono);">Awaiting Asset Serialization Initialization...</span>
               </div>
             </div>
+
+            <div style="display: flex; flex-direction: column; gap: 1.5rem;">
+              <div class="card">
+                <h3 class="card-title">Dispatch Order Execution</h3>
+                <div class="trade-toggle">
+                  <button class="toggle-btn active" data-mode="buy" id="toggle-buy">BUY</button>
+                  <button class="toggle-btn" data-mode="sell" id="toggle-sell">SELL</button>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Share Allocation Volume (Fractional Allowed)</label>
+                  <input type="number" class="form-input" id="trade-qty-input" step="any" min="0.0001" placeholder="0.00" />
+                </div>
+                <div style="background: var(--bg-input); padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem;">
+                  <div style="display:flex; justify-content: space-between; margin-bottom: 0.4rem;"><span>Settlement Quote Cost:</span><span id="prev-cost">$--</span></div>
+                  <div style="display:flex; justify-content: space-between; border-top: 1px dashed var(--border-bright); padding-top: 0.4rem;"><span>Capital Residual Balance:</span><span id="prev-residual">$--</span></div>
+                </div>
+                <button class="btn-primary" id="btn-dispatch-order">TRANSMIT ORDER BLOCK</button>
+              </div>
+
+              <div class="card">
+                <h3 class="card-title">Specification Matrix</h3>
+                <div style="display:grid; grid-template-columns: 1fr; gap:0.5rem; font-family:var(--font-mono); font-size:0.85rem;">
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Spot Market Price:</span><span id="t-stat-price">--</span></div>
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day Low Bounds:</span><span id="t-stat-low">--</span></div>
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>Day High Bounds:</span><span id="t-stat-high">--</span></div>
+                  <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;"><span>System Code Ref:</span><span id="t-stat-rawtoken" style="color: var(--text-secondary); font-size: 0.75rem;">--</span></div>
+                </div>
+              </div>
+            </div>
+
           </div>
         </div>
       </section>
@@ -306,7 +330,7 @@
         <div class="card">
           <table class="data-table">
             <thead>
-              <tr><th>Rank</th><th>Trader Profile</th><th>Liquid Cash</th><th>Performance Yield Percentage</th></tr>
+              <tr><th>Rank</th><th>Trader Profile</th><th>Liquid Cash Balance</th><th>Performance Yield Percentage</th></tr>
             </thead>
             <tbody id="leaderboard-ranking-table"></tbody>
           </table>
@@ -316,6 +340,8 @@
 
     <div class="ticker-tape-wrap"><div class="ticker-tape" id="app-ticker-tape-container"></div></div>
   </div>
+
+  <script type="text/javascript" src="https://s3.tradingview.com/tv.js"></script>
 
   <script>
     const App = {
@@ -348,11 +374,12 @@
         const err = document.getElementById("reg-error-box");
         const username = document.getElementById("in-reg-user").value;
         const displayName = document.getElementById("in-reg-display").value;
+        const password = document.getElementById("in-reg-pass").value;
 
         const res = await fetch('/api/auth/register', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ username, displayName })
+          body: JSON.stringify({ username, displayName, password })
         });
         const data = await res.json();
         
@@ -368,11 +395,12 @@
       async processLogin() {
         const err = document.getElementById("login-error-box");
         const username = document.getElementById("in-login-user").value;
+        const password = document.getElementById("in-login-pass").value;
 
         const res = await fetch('/api/auth/login', {
           method: 'POST',
           headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({ username })
+          body: JSON.stringify({ username, password })
         });
         const data = await res.json();
 
@@ -431,7 +459,7 @@
             const tr = document.createElement("tr");
             tr.innerHTML = `
               <td><span class="sym-badge">${i.symbol}</span></td>
-              <td>${i.shares}</td>
+              <td>${i.shares.toFixed(4)}</td>
               <td>$${i.avgCost.toFixed(2)}</td>
               <td>$${i.currentPrice.toFixed(2)}</td>
               <td>$${i.marketValue.toFixed(2)}</td>
@@ -452,7 +480,7 @@
               <td>${h.date}</td>
               <td class="${h.type === 'BUY' ? 'gain' : 'loss'}">${h.type}</td>
               <td><span class="sym-badge">${h.symbol}</span></td>
-              <td>${h.shares}</td>
+              <td>${h.shares.toFixed(4)}</td>
               <td>$${h.price.toFixed(2)}</td>
               <td>$${h.sum.toFixed(2)}</td>
               <td class="${h.pl >= 0 ? 'gain' : 'loss'}">${h.type === 'SELL' ? '$' + h.pl.toFixed(2) : '0.00'}</td>
@@ -489,7 +517,11 @@
 
         this.tradeAsset = data;
         document.getElementById("trade-ticker-panel").classList.remove("hidden");
-        document.getElementById("t-display-symbol").textContent = data.symbol;
+        
+        // UI REFACTOR: Display user-friendly asset descriptors, keep technical keys tucked inside statistical details.
+        document.getElementById("t-display-symbol").textContent = data.cleanName; 
+        document.getElementById("t-display-name").textContent = data.assetClassDescription;
+        
         document.getElementById("t-display-price").textContent = "$" + data.price.toFixed(2);
         
         const chg = document.getElementById("t-display-change");
@@ -499,9 +531,34 @@
         document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
         document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
         document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
-        document.getElementById("t-stat-prev").textContent = "$" + data.prev.toFixed(2);
+        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
 
+        // Render Graph Engine Widget asynchronously
+        this.injectTradingViewGraph(data.symbol);
         this.runTradeCalculationPreview();
+      },
+
+      injectTradingViewGraph(tickerSymbol) {
+        // Format syntax structures for indexes so TradingView renders them cleanly
+        let tradingViewAssetString = tickerSymbol;
+        if(tickerSymbol === "^IXIC") tradingViewAssetString = "NASDAQ:IXIC";
+        if(tickerSymbol === "^NSEI") tradingViewAssetString = "NSE:NIFTY";
+
+        new TradingView.widget({
+          "width": "100%",
+          "height": "100%",
+          "symbol": tradingViewAssetString,
+          "interval": "D",
+          "timezone": "Etc/UTC",
+          "theme": "dark",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#0d1117",
+          "enable_publishing": false,
+          "hide_side_toolbar": true,
+          "allow_symbol_change": false,
+          "container_id": "tradingview-chart-container"
+        });
       },
 
       runTradeCalculationPreview() {
@@ -510,7 +567,7 @@
           document.getElementById("prev-residual").textContent = "$" + this.activeUser.cash.toFixed(2);
           return;
         }
-        const qty = parseInt(document.getElementById("trade-qty-input").value) || 0;
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
         const sum = qty * this.tradeAsset.price;
         const res = this.tradeMode === "buy" ? this.activeUser.cash - sum : this.activeUser.cash + sum;
 
@@ -521,8 +578,8 @@
 
       async dispatchOrderBlock() {
         if (!this.tradeAsset) return;
-        const qty = parseInt(document.getElementById("trade-qty-input").value) || 0;
-        if(qty <= 0) { alert("Invalid allocation size."); return; }
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
+        if(qty <= 0) { alert("Invalid allocation size matrix."); return; }
 
         const res = await fetch('/api/trade/execute', {
           method: 'POST',
@@ -539,7 +596,7 @@
         if(!res.ok) {
           alert(data.error);
         } else {
-          alert("Order ledger committed successfully.");
+          alert("Order fractional ledger committed successfully.");
           this.switchWorkspaceView("view-portfolio");
         }
       },
