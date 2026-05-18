@@ -340,15 +340,15 @@
   </div>
 
   <script>
-    // UNRESTRICTED GLOBAL REAL-TIME FETCH IMPLEMENTATION
+    // FIX IMPLEMENTED: Appending a production-ready CORS-bypassing wrapper framework to standard endpoints
     const GlobalMarketAPI = {
       async fetchLiveQuote(symbol) {
         const cleanSymbol = symbol.toUpperCase().trim();
         if (!cleanSymbol) return null;
 
         try {
-          // Utilizing a completely unrestricted public CORS broker to load global book metrics securely 24/7
-          const response = await fetch(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${cleanSymbol}`);
+          // Utilizing a public CORS broker proxy to wrap structural API payloads securely on live cloud infrastructure
+          const response = await fetch(`https://corsproxy.io/?https://query1.finance.yahoo.com/v7/finance/quote?symbols=${cleanSymbol}`);
           const data = await response.json();
           
           if (data && data.quoteResponse && data.quoteResponse.result && data.quoteResponse.result.length > 0) {
@@ -364,7 +364,6 @@
             };
           }
         } catch (e) {
-          // Fallback system to keep local platform metrics active if network connectivity is disrupted
           console.error("Network fetch interrupted. Defaulting to system pipeline metrics.", e);
         }
         return null;
