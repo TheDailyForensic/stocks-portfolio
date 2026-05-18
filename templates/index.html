@@ -49,6 +49,7 @@
       -webkit-font-smoothing: antialiased;
     }
 
+    /* CRITICAL CHANGE: Added pointer-events: none to allow user clicks to pass through overlay layers */
     .scanlines {
       position: fixed; inset: 0; z-index: 1000; pointer-events: none;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.08) 2px, rgba(0,0,0,0.08) 4px);
@@ -116,7 +117,6 @@
     .form-input { width: 100%; background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border); border-radius: var(--radius); padding: 0.75rem 0.9rem; font-family: var(--font-mono); outline: none; }
     .form-input:focus { border-color: var(--accent); }
     
-    /* Custom Styling for the range slider element block */
     .slider-row { display: flex; align-items: center; gap: 1rem; margin-top: 0.5rem; }
     .form-range-input { flex-grow: 1; accent-color: var(--accent); height: 6px; background: var(--bg-input); border-radius: 3px; cursor: pointer; }
     .slider-max-lbl { font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); background: var(--bg-elevated); padding: 0.2rem 0.5rem; border: 1px solid var(--border); border-radius: 2px; }
@@ -154,7 +154,6 @@
     .tt-sym { color: var(--accent); font-weight: bold; }
 
     .chart-box-wrapper { width: 100%; height: 380px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; }
-
     .search-container { position: relative; }
 
     @media (max-width: 850px) {
@@ -555,8 +554,8 @@
 
       async syncPortfolioView() {
         const res = await fetch('/api/user/portfolio');
-        const totals = await res.json();
         if (!res.ok) return;
+        const totals = await res.json();
 
         this.activeUser.cash = totals.cash;
 
@@ -594,9 +593,9 @@
 
         const histBody = document.getElementById("history-logs-table");
         histBody.innerHTML = "";
-        if(totals.history.length === 0) {
+        if(totals.history && totals.history.length === 0) {
           histBody.innerHTML = `<tr><td colspan="7" style="text-align:center; color:var(--text-dim); padding:2rem 0;">No logged transactions yet.</td></tr>`;
-        } else {
+        } else if (totals.history) {
           totals.history.forEach(h => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
@@ -621,13 +620,13 @@
 
       syncTradeView() {
         document.getElementById("trade-cash-badge").textContent = "Available Cash: $" + this.activeUser.cash.toFixed(2);
+        document.getElementById("trade-qty-input").value = "";
         if(!this.tradeAsset) {
           document.getElementById("trade-search-input").value = "";
-          document.getElementById("trade-qty-input").value = "";
           document.getElementById("trade-ticker-panel").classList.add("hidden");
         }
         document.getElementById("trade-search-error").classList.add("hidden");
-        this.updateInterfaceOrderModeContext();
+        this.runTradeCalculationPreview();
       },
 
       async executeTickerQuery() {
@@ -638,3 +637,163 @@
         if (!queryText) return;
 
         const res = await fetch(`/api/market/query?query=${encodeURIComponent(queryText)}`);
+        const data = await res.json();
+        
+        if (!res.ok) {
+          errEl.textContent = data.error;
+          errEl.classList.remove("hidden");
+          return;
+        }
+
+        this.tradeAsset = data;
+        document.getElementById("trade-ticker-panel").classList.remove("hidden");
+        
+        document.getElementById("t-display-symbol").textContent = data.cleanName; 
+        document.getElementById("t-display-name").textContent = data.assetClassDescription;
+        document.getElementById("t-display-price").textContent = "$" + data.price.toFixed(2);
+        
+        const chg = document.getElementById("t-display-change");
+        chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
+        chg.className = data.change >= 0 ? "gain" : "loss";
+
+        document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
+        document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
+        document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
+        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
+
+        this.injectTradingViewGraph(data.symbol);
+        this.runTradeCalculationPreview();
+      },
+
+      injectTradingViewGraph(tickerSymbol) {
+        let tradingViewAssetString = tickerSymbol;
+        if(tickerSymbol === "^IXIC") tradingViewAssetString = "NASDAQ:IXIC";
+        if(tickerSymbol === "^NSEI") tradingViewAssetString = "NSE:NIFTY";
+
+        new TradingView.widget({
+          "width": "100%",
+          "height": "100%",
+          "symbol": tradingViewAssetString,
+          "interval": "D",
+          "timezone": "Etc/UTC",
+          "theme": "dark",
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": "#0d1117",
+          "enable_publishing": false,
+          "hide_side_toolbar": true,
+          "allow_symbol_change": false,
+          "container_id": "tradingview-chart-container"
+        });
+      },
+
+      runTradeCalculationPreview() {
+        if(!this.tradeAsset) {
+          document.getElementById("prev-cost").textContent = "$0.00";
+          document.getElementById("prev-residual").textContent = "$" + this.activeUser.cash.toFixed(2);
+          return;
+        }
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
+        const sum = qty * this.tradeAsset.price;
+        const res = this.tradeMode === "buy" ? this.activeUser.cash - sum : this.activeUser.cash + sum;
+
+        document.getElementById("prev-cost").textContent = "$" + sum.toFixed(2);
+        document.getElementById("prev-residual").textContent = "$" + res.toFixed(2);
+        document.getElementById("prev-residual").className = res < 0 ? "loss" : "";
+      },
+
+      async dispatchOrderBlock() {
+        if (!this.tradeAsset) return;
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
+        if(qty <= 0) { alert("Please type a valid number of shares to trade."); return; }
+
+        const res = await fetch('/api/trade/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            symbol: this.tradeAsset.symbol,
+            qty: qty,
+            mode: this.tradeMode,
+            price: this.tradeAsset.price
+          })
+        });
+        
+        const data = await res.json();
+        if(!res.ok) {
+          alert(data.error);
+        } else {
+          alert("Order processed successfully!");
+          this.tradeAsset = null;
+          this.switchWorkspaceView("view-portfolio");
+        }
+      },
+
+      async syncLeaderboardView() {
+        const res = await fetch('/api/leaderboard');
+        const dataset = await res.json();
+        const body = document.getElementById("leaderboard-ranking-table");
+        body.innerHTML = "";
+        
+        dataset.forEach((trader, i) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><strong>#${i+1}</strong></td>
+            <td>${trader.name} <span style="color:var(--text-dim); font-size:0.75rem;">@${trader.handle}</span></td>
+            <td>$${trader.cash.toFixed(2)}</td>
+            <td class="${trader.returns >= 0 ? 'gain' : 'loss'}">${trader.returns >= 0 ? '+' : ''}${trader.returns.toFixed(2)}%</td>
+          `;
+          body.appendChild(tr);
+        });
+      },
+
+      renderTickerTape() {
+        const container = document.getElementById("app-ticker-tape-container");
+        if (!container) return;
+        const tracks = ["AAPL", "MSFT", "TSLA", "NFLX", "NVDA", "AMZN"];
+        container.innerHTML = "";
+        tracks.forEach(t => {
+          const div = document.createElement("div");
+          div.className = "tt-item";
+          div.innerHTML = `<span class="tt-sym">${t}</span> <span>LIVE TRACKING ACTIVE</span>`;
+          container.appendChild(div);
+        });
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      App.init();
+      
+      document.getElementById("tab-login-toggle").addEventListener("click", () => App.switchAuthTab("login"));
+      document.getElementById("tab-reg-toggle").addEventListener("click", () => App.switchAuthTab("register"));
+      
+      document.getElementById("btn-submit-login").addEventListener("click", () => App.processLogin());
+      document.getElementById("btn-submit-register").addEventListener("click", () => App.processRegister());
+      
+      document.getElementById("btn-logout-action").addEventListener("click", async () => {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        App.activeUser = null;
+        App.tradeAsset = null;
+        document.getElementById("screen-app").classList.add("hidden");
+        document.getElementById("screen-auth").classList.remove("hidden");
+        App.switchAuthTab("login");
+      });
+
+      document.querySelectorAll(".nav-btn").forEach(b => {
+        b.addEventListener("click", (e) => App.switchWorkspaceView(e.target.dataset.target));
+      });
+
+      document.getElementById("btn-fetch-ticker").addEventListener("click", () => App.executeTickerQuery());
+      
+      document.getElementById("toggle-buy").addEventListener("click", (e) => {
+        App.tradeMode = "buy"; e.target.classList.add("active"); document.getElementById("toggle-sell").classList.remove("active"); App.runTradeCalculationPreview();
+      });
+      document.getElementById("toggle-sell").addEventListener("click", (e) => {
+        App.tradeMode = "sell"; e.target.classList.add("active"); document.getElementById("toggle-buy").classList.remove("active"); App.runTradeCalculationPreview();
+      });
+      
+      document.getElementById("trade-qty-input").addEventListener("input", () => App.runTradeCalculationPreview());
+      document.getElementById("btn-dispatch-order").addEventListener("click", () => App.dispatchOrderBlock());
+    });
+  </script>
+</body>
+</html>
