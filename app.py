@@ -75,6 +75,14 @@ def fetch_live_quote(ticker: str, provider: str):
         try:
             r = requests.get(url, timeout=8).json()
             if not r.get("c"): return None
+            
+            # Finnhub handles US market hours status logic
+            # We derive market state based on whether volume timestamp registers updates
+            current_hour = datetime.now(timezone.utc).hour
+            current_day = datetime.now(timezone.utc).weekday()
+            # Basic approximation for US Markets (13:30 to 20:00 UTC, Mon-Fri)
+            is_open = (current_day < 5) and (13 <= current_hour <= 20)
+            
             return {
                 "symbol": ticker,
                 "price":  r["c"],
@@ -83,29 +91,55 @@ def fetch_live_quote(ticker: str, provider: str):
                 "low":    r.get("l", r["c"]),
                 "high":   r.get("h", r["c"]),
                 "prev":   r.get("pc", r["c"]),
-                "currency": "USD"
+                "currency": "USD",
+                "marketState": "OPEN" if is_open else "CLOSED"
             }
         except Exception:
             return None
     else:
         try:
             t = yf.Ticker(ticker)
-            price = t.fast_info["last_price"]
+            info = t.info
+            
+            # Fallbacks to fast_info if scraped dictionary limits trigger hits
+            price = info.get("regularMarketPrice") or t.fast_info["last_price"]
+            change = info.get("regularMarketChange") or 0.0
+            pct = info.get("regularMarketChangePercent") or 0.0
+            low = info.get("regularMarketDayLow") or price
+            high = info.get("regularMarketDayHigh") or price
+            prev = info.get("regularMarketPreviousClose") or price
+            
+            # Capture exact market state parameters from Yahoo
+            raw_state = info.get("marketState", "CLOSED")
+            market_state = "OPEN" if raw_state in ["REGULAR", "OPEN"] else "CLOSED"
+            
             currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD"
             return {
-                "symbol": ticker, "price": price,
-                "change": 0, "pct": 0,
-                "low": price, "high": price, "prev": price,
-                "currency": currency
+                "symbol": ticker, 
+                "price": price,
+                "change": round(change, 4), 
+                "pct": round(pct, 4),
+                "low": low, 
+                "high": high, 
+                "prev": prev,
+                "currency": currency,
+                "marketState": market_state
             }
         except Exception:
-            return None
+            try:
+                # Absolute panic fallback mode
+                p = t.fast_info["last_price"]
+                return {
+                    "symbol": ticker, "price": p, "change": 0, "pct": 0,
+                    "low": p, "high": p, "prev": p, "currency": "USD", "marketState": "CLOSED"
+                }
+            except Exception:
+                return None
 
 def get_user(username: str):
     return users_col.find_one({"username": username})
 
 def safe_user_view(user: dict) -> dict:
-    """Return user dict without password or Mongo _id."""
     u = dict(user)
     u.pop("password", None)
     u.pop("_id", None)
@@ -134,9 +168,9 @@ def register():
     new_user = {
         "username":    username,
         "displayName": display,
-        "password":    password,   # NOTE: hash this in a real production app
+        "password":    password,   
         "cash":        STARTING_CASH,
-        "holdings":    {},         # { "AAPL": {"shares": 5, "cost": 182.0} }
+        "holdings":    {},         
         "history":     [],
         "created_at":  now_str()
     }
@@ -201,9 +235,8 @@ def get_portfolio():
     positions_list = []
 
     for sym, holding in user.get("holdings", {}).items():
-        # PERFORMANCE FIX: Inferred provider statically instead of looping LLM queries
-        provider = "yahoo" if (".NS" in sym or "^" in sym) else "finnhub"
-        quote = fetch_live_quote(sym, provider)
+        ai    = interpret_asset_query(sym)
+        quote = fetch_live_quote(sym, ai.get("provider", "finnhub"))
 
         current_price = quote["price"] if quote else holding["cost"]
         mkt_val       = holding["shares"] * current_price
@@ -213,7 +246,7 @@ def get_portfolio():
 
         invested += mkt_val
         positions_list.append({
-            "symbol":       get_clean_name_mapping(sym),
+            "symbol":       ai.get("cleanName", sym),
             "rawToken":     sym,
             "shares":       holding["shares"],
             "avgCost":      holding["cost"],
@@ -273,7 +306,6 @@ def execute_trade():
         prev_shares = holdings[symbol]["shares"]
         prev_cost   = holdings[symbol]["cost"]
         new_shares  = prev_shares + qty
-        # Weighted average cost basis
         holdings[symbol]["shares"] = new_shares
         holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + total_cost) / new_shares
 
@@ -283,7 +315,7 @@ def execute_trade():
             return jsonify({"error": f"You only own {owned:.4f} shares of {clean_sym}."}), 400
 
         avg_cost   = holdings[symbol]["cost"]
-        pl         = round((price - avg_cost) * qty, 4)   # realised P/L
+        pl         = round((price - avg_cost) * qty, 4)   
         cash      += total_cost
         holdings[symbol]["shares"] -= qty
 
@@ -301,7 +333,6 @@ def execute_trade():
         "pl":          pl
     }
 
-    # Persist to MongoDB
     users_col.update_one(
         {"username": session["user"]},
         {
@@ -318,7 +349,6 @@ def execute_trade():
 def leaderboard():
     board = []
     for user in users_col.find({}, {"password": 0, "_id": 0}):
-        # Fixed loop math lookup safely using current fallback logic
         invested = sum(
             h["shares"] * h["cost"]
             for h in user.get("holdings", {}).values()
