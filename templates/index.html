@@ -71,12 +71,13 @@
       transition: background var(--transition), color var(--transition);
     }
 
+    /* CRITICAL FIX: Explicitly forced pointer-events: none on ALL overlay filters to allow clicks to pass through */
     .scanlines {
       position: fixed; inset: 0; z-index: 1000; pointer-events: none;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.04) 2px, rgba(0,0,0,0.04) 4px);
     }
     .noise-overlay {
-      position: fixed; inset: 0; z-index: 999; pointer-events: none; opacity: 0.015;
+      position: fixed; inset: 0; z-index: 999; pointer-events: none; opacity: 0.025;
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
@@ -122,7 +123,7 @@
     .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
     .kpi-card { background: var(--bg-card); border: 1px solid var(--border); padding: 1.25rem; border-radius: var(--radius-lg); }
     
-    .kpi-lbl-flex { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.7°rem; color: var(--text-dim); text-transform: uppercase; }
+    .kpi-lbl-flex { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
     .kpi-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: bold; margin-top: 0.25rem; }
 
     .help-tooltip {
@@ -420,15 +421,15 @@
                 <h3 class="card-title">Market Details</h3>
                 <div style="display:grid; grid-template-columns: 1fr; gap:0.5rem; font-family:var(--font-mono); font-size:0.85rem;">
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
-                    <span>Current Spot Price: <span class="help-tooltip" title="The exact realtime evaluation mark of 1 share units layout right now.">?</span></span>
+                    <span>Current Spot Price:</span>
                     <span id="t-stat-price">--</span>
                   </div>
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
-                    <span>Session Floor (Low): <span class="help-tooltip" title="The lowest traded threshold hit during today's current open hours calendar.">?</span></span>
+                    <span>Session Floor (Low):</span>
                     <span id="t-stat-low">--</span>
                   </div>
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
-                    <span>Session Ceiling (High): <span class="help-tooltip" title="The absolute peak transaction cost value verified today.">?</span></span>
+                    <span>Session Ceiling (High):</span>
                     <span id="t-stat-high">--</span>
                   </div>
                   <div style="display:flex; justify-content:space-between; border-bottom:1px solid var(--bg-input); padding:0.5rem 0;">
@@ -552,7 +553,6 @@
         try {
           const res = await fetch('/api/user/portfolio');
           if (res.ok) {
-            // Fake profile state loading from safe portfolio sync
             this.activeUser = { username: "active_user", displayName: "Trader Account", cash: 10000.00 };
             this.bootToAppWorkspace();
             return;
@@ -662,7 +662,6 @@
         const body = document.getElementById("portfolio-positions-table");
         body.innerHTML = "";
         
-        // Track open holdings for the dynamic sell order maximum parameters
         this.activeUser.holdings = {};
 
         if(totals.positions.length === 0) {
@@ -731,4 +730,254 @@
             <div class="t-sym">${item.sym.replace(".NS","")}</div>
             <div class="t-lbl">${item.name}</div>
           `;
-          pill.
+          pill.addEventListener("click", () => {
+            document.getElementById("trade-search-input").value = item.sym;
+            this.executeTickerQuery();
+          });
+          container.appendChild(pill);
+        });
+      },
+
+      syncTradeView() {
+        document.getElementById("trade-cash-badge").textContent = "Available Cash: $" + this.activeUser.cash.toFixed(2);
+        document.getElementById("trade-qty-input").value = "";
+        if(!this.tradeAsset) {
+          document.getElementById("trade-search-input").value = "";
+          document.getElementById("trade-ticker-panel").classList.add("hidden");
+        }
+        document.getElementById("trade-search-error").classList.add("hidden");
+        this.runTradeCalculationPreview();
+      },
+
+      async executeTickerQuery() {
+        const errEl = document.getElementById("trade-search-error");
+        errEl.classList.add("hidden");
+        
+        const queryText = document.getElementById("trade-search-input").value;
+        if (!queryText) return;
+
+        const res = await fetch(`/api/market/query?query=${encodeURIComponent(queryText)}`);
+        const data = await res.json();
+        
+        if (!res.ok) {
+          errEl.textContent = data.error;
+          errEl.classList.remove("hidden");
+          return;
+        }
+
+        this.tradeAsset = data;
+        document.getElementById("trade-ticker-panel").classList.remove("hidden");
+        
+        const currencySign = data.currency === "INR" ? "₹" : "$";
+
+        document.getElementById("t-display-symbol").textContent = data.cleanName; 
+        document.getElementById("t-display-name").textContent = data.assetClassDescription;
+        document.getElementById("t-display-price").textContent = currencySign + data.price.toFixed(2);
+        
+        const chg = document.getElementById("t-display-change");
+        chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
+        chg.className = data.change >= 0 ? "gain" : "loss";
+
+        document.getElementById("t-stat-price").textContent = currencySign + data.price.toFixed(2);
+        document.getElementById("t-stat-high").textContent = currencySign + data.high.toFixed(2);
+        document.getElementById("t-stat-low").textContent = currencySign + data.low.toFixed(2);
+        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
+
+        this.syncSellSliderContext();
+        this.injectTradingViewGraph(data.symbol);
+        this.runTradeCalculationPreview();
+      },
+
+      syncSellSliderContext() {
+        const sliderWrapper = document.getElementById("sell-slider-wrapper");
+        if(this.tradeMode === "sell" && this.tradeAsset) {
+          const owned = (this.activeUser.holdings && this.activeUser.holdings[this.tradeAsset.symbol]) || 0;
+          if (owned > 0) {
+            sliderWrapper.classList.remove("hidden");
+            const slider = document.getElementById("trade-qty-slider");
+            slider.max = owned;
+            document.getElementById("slider-max-display").textContent = "Owned: " + owned.toFixed(4);
+            return;
+          }
+        }
+        sliderWrapper.classList.add("hidden");
+      },
+
+      injectTradingViewGraph(tickerSymbol) {
+        let tradingViewAssetString = tickerSymbol;
+        let chartTimezone = "Etc/UTC";
+
+        if (tickerSymbol.endsWith(".NS")) {
+          tradingViewAssetString = "NSE:" + tickerSymbol.replace(".NS", "");
+          chartTimezone = "Asia/Kolkata"; 
+        } else if (tickerSymbol === "^IXIC") {
+          tradingViewAssetString = "NASDAQ:IXIC";
+        } else if (tickerSymbol === "^NSEI") {
+          tradingViewAssetString = "NSE:NIFTY";
+          chartTimezone = "Asia/Kolkata";
+        }
+
+        const currentTheme = document.body.getAttribute("data-theme") || "dark";
+
+        new TradingView.widget({
+          "width": "100%",
+          "height": "100%",
+          "symbol": tradingViewAssetString,
+          "interval": "D",
+          "timezone": chartTimezone,
+          "theme": currentTheme,
+          "style": "1",
+          "locale": "en",
+          "toolbar_bg": currentTheme === "dark" ? "#0d1117" : "#ffffff",
+          "enable_publishing": false,
+          "hide_side_toolbar": true,
+          "allow_symbol_change": false,
+          "hide_top_toolbar": true, 
+          "withheader": false,
+          "container_id": "tradingview-chart-container"
+        });
+      },
+
+      runTradeCalculationPreview() {
+        if(!this.tradeAsset) {
+          document.getElementById("prev-cost").textContent = "$0.00";
+          document.getElementById("prev-residual").textContent = "$" + this.activeUser.cash.toFixed(2);
+          return;
+        }
+        const currencySign = this.tradeAsset.currency === "INR" ? "₹" : "$";
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
+        const sum = qty * this.tradeAsset.price;
+        const res = this.tradeMode === "buy" ? this.activeUser.cash - sum : this.activeUser.cash + sum;
+
+        document.getElementById("prev-cost").textContent = currencySign + sum.toFixed(2);
+        document.getElementById("prev-residual").textContent = currencySign + res.toFixed(2);
+        document.getElementById("prev-residual").className = res < 0 ? "loss" : "";
+      },
+
+      async dispatchOrderBlock() {
+        if (!this.tradeAsset) return;
+        const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
+        if(qty <= 0) { alert("Please type a valid number of shares to trade."); return; }
+
+        const res = await fetch('/api/trade/execute', {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({
+            symbol: this.tradeAsset.symbol,
+            qty: qty,
+            mode: this.tradeMode,
+            price: this.tradeAsset.price
+          })
+        });
+        
+        const data = await res.json();
+        if(!res.ok) {
+          alert(data.error);
+        } else {
+          alert("Order processed successfully!");
+          this.tradeAsset = null;
+          this.switchWorkspaceView("view-portfolio");
+        }
+      },
+
+      async syncLeaderboardView() {
+        const res = await fetch('/api/leaderboard');
+        const dataset = await res.json();
+        const body = document.getElementById("leaderboard-ranking-table");
+        body.innerHTML = "";
+        
+        dataset.forEach((trader, i) => {
+          const tr = document.createElement("tr");
+          tr.innerHTML = `
+            <td><strong>#${i+1}</strong></td>
+            <td>${trader.name} <span style="color:var(--text-dim); font-size:0.75rem;">@${trader.handle}</span></td>
+            <td>$${trader.cash.toFixed(2)}</td>
+            <td class="${trader.returns >= 0 ? 'gain' : 'loss'}">${trader.returns >= 0 ? '+' : ''}${trader.returns.toFixed(2)}%</td>
+          `;
+          body.appendChild(tr);
+        });
+      },
+
+      renderTickerTape() {
+        const container = document.getElementById("app-ticker-tape-container");
+        if (!container) return;
+        const tracks = ["AAPL", "MSFT", "TSLA", "NFLX", "NVDA", "AMZN"];
+        container.innerHTML = "";
+        tracks.forEach(t => {
+          const div = document.createElement("div");
+          div.className = "tt-item";
+          div.innerHTML = `<span class="tt-sym">${t}</span> <span>LIVE TRACKING ACTIVE</span>`;
+          container.appendChild(div);
+        });
+      }
+    };
+
+    document.addEventListener("DOMContentLoaded", () => {
+      App.init();
+      
+      document.getElementById("tab-login-toggle").addEventListener("click", () => App.switchAuthTab("login"));
+      document.getElementById("tab-reg-toggle").addEventListener("click", () => App.switchAuthTab("register"));
+      
+      document.getElementById("btn-submit-login").addEventListener("click", () => App.processLogin());
+      document.getElementById("btn-submit-register").addEventListener("click", () => App.processRegister());
+      
+      document.getElementById("btn-logout-action").addEventListener("click", async () => {
+        await fetch('/api/auth/logout', {method: 'POST'});
+        App.activeUser = null;
+        App.tradeAsset = null;
+        document.getElementById("screen-app").classList.add("hidden");
+        document.getElementById("screen-auth").classList.remove("hidden");
+        App.switchAuthTab("login");
+      });
+
+      document.querySelectorAll(".nav-btn").forEach(b => {
+        b.addEventListener("click", (e) => App.switchWorkspaceView(e.target.dataset.target));
+      });
+
+      document.getElementById("btn-fetch-ticker").addEventListener("click", () => App.executeTickerQuery());
+      
+      document.querySelectorAll(".filter-btn").forEach(btn => {
+        btn.addEventListener("click", (e) => {
+          document.querySelectorAll(".filter-btn").forEach(x => x.classList.remove("active"));
+          e.target.classList.add("active");
+          App.currentFilter = e.target.dataset.filter;
+          App.renderTrendingShortcuts();
+        });
+      });
+
+      document.getElementById("toggle-buy").addEventListener("click", (e) => {
+        App.tradeMode = "buy"; e.target.classList.add("active"); document.getElementById("toggle-sell").classList.remove("active"); 
+        App.syncSellSliderContext(); App.runTradeCalculationPreview();
+      });
+      document.getElementById("toggle-sell").addEventListener("click", (e) => {
+        App.tradeMode = "sell"; e.target.classList.add("active"); document.getElementById("toggle-buy").classList.remove("active"); 
+        App.syncSellSliderContext(); App.runTradeCalculationPreview();
+      });
+      
+      document.getElementById("trade-qty-slider").addEventListener("input", (e) => {
+        document.getElementById("trade-qty-input").value = e.target.value;
+        App.runTradeCalculationPreview();
+      });
+
+      document.getElementById("trade-qty-input").addEventListener("input", () => App.runTradeCalculationPreview());
+      document.getElementById("btn-dispatch-order").addEventListener("click", () => App.dispatchOrderBlock());
+
+      document.getElementById("setting-theme-select").addEventListener("change", (e) => {
+        const val = e.target.value;
+        document.body.setAttribute("data-theme", val);
+        localStorage.setItem("stocksim-theme", val);
+        if(App.tradeAsset) { App.injectTradingViewGraph(App.tradeAsset.symbol); }
+      });
+
+      document.getElementById("btn-save-settings").addEventListener("click", () => {
+        const newSig = document.getElementById("setting-display-name").value.trim();
+        if(newSig) {
+          App.activeUser.displayName = newSig;
+          document.getElementById("sb-user-display").textContent = newSig;
+          alert("Profile configurations saved successfully.");
+        }
+      });
+    });
+  </script>
+</body>
+</html>
