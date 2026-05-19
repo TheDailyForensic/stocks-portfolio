@@ -1,235 +1,341 @@
 import os
-import json
-import requests
-import yfinance as yf
-from flask import Flask, render_template, request, jsonify, session
-from openai import OpenAI
+import random
+from datetime import datetime
+from flask import Flask, request, jsonify, send_from_directory
+from flask_cors import CORS
+from pymongo import MongoClient
+import yfinance as ticker_engine
+from groq import Groq  # <-- AI Engine Restored!
 
-app = Flask(__name__)
-app.secret_key = "DEVELOPMENT_SECRET_KEY_KEEP_THIS_SAFE"
+app = Flask(__name__, static_folder=".")
+CORS(app)
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
-FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+# ==========================================
+# 1. LIVE CONNECTIONS & SECURE ENVIROMENTS
+# ==========================================
+MONGO_URI = os.environ.get("MONGO_URI")
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") # <-- Make sure to add this in Render Environment Variables!
 
-groq_client = OpenAI(
-    base_url="https://api.groq.com/openai/v1",
-    api_key=GROQ_API_KEY
-)
+if not MONGO_URI:
+    print("❌ SYSTEM ALERT: MONGO_URI environment variable is missing on Render!")
+if not GROQ_API_KEY:
+    print("❌ SYSTEM ALERT: GROQ_API_KEY is missing! AI parsing will fall back to basic matching.")
 
-MOCK_USERS_DB = {}
+try:
+    client = MongoClient(MONGO_URI)
+    db = client["trading_simulator"]
+    users_col = db["users"]
+    history_col = db["history"]
+    print("🚀 MongoDB Atlas Connectivity Established!")
+except Exception as e:
+    print(f"❌ Database connection failed: {e}")
 
-# Helper decoder to quickly clean up raw system tags into human text arrays
-def get_clean_name_mapping(ticker: str) -> str:
-    if ticker == "^IXIC": return "NASDAQ Composite"
-    if ticker == "^NSEI": return "NIFTY 50"
-    if ticker.endswith(".NS"): return ticker.replace(".NS", "")
-    return ticker
+# Initialize Groq client
+ai_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 
-def interpret_asset_query(user_input: str) -> dict:
-    system_instruction = """
-    You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
-    
-    Rules:
-    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA). cleanName is standard ticker. description is Company Name.
-    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS). cleanName is standard asset without .NS. description is Company Name.
-    3. For Nasdaq Index, ticker is '^IXIC', provider is 'yahoo', cleanName is 'NASDAQ Composite', description is 'US Tech Index'.
-    4. For Nifty 50 Index, ticker is '^NSEI', provider is 'yahoo', cleanName is 'NIFTY 50', description is 'NSE National Index'.
-    
-    Respond ONLY with a valid JSON matching this schema:
-    {"ticker": "STRING", "provider": "finnhub" or "yahoo", "cleanName": "STRING", "description": "STRING", "error": false}
-    """
+# ==========================================
+# 2. AI TEXT PARSING LOGIC
+# ==========================================
+def extract_ticker_with_ai(user_query):
+    """Uses Groq AI to convert plain English requests into a clean stock ticker symbol."""
+    if not ai_client:
+        # Fallback dictionary mapping if AI key isn't configured yet
+        clean = user_query.strip().upper()
+        fallback_map = {"APPLE": "AAPL", "NVIDIA": "NVDA", "TESLA": "TSLA", "BITCOIN": "BTC-USD", "MICROSOFT": "MSFT"}
+        return fallback_map.get(clean, clean)
+
     try:
-        response = groq_client.chat.completions.create(
-            model="llama-3.3-70b-versatile",
-            response_format={"type": "json_object"},
+        # We instruct the AI to return ONLY the ticker and absolutely nothing else.
+        chat_completion = ai_client.chat.completions.create(
             messages=[
-                {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Query: '{user_input}'"}
-            ]
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a precise financial asset extraction bot. Your job is to read a user's natural language query "
+                        "and return ONLY the official stock ticker symbol or crypto symbol (e.g., AAPL, NVDA, TSLA, BTC-USD). "
+                        "Do not include punctuation, do not include introductory words, do not explain anything. Just output the uppercase symbol."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": f"Extract the stock ticker from this search query: '{user_query}'"
+                }
+            ],
+            model="llama3-8b-8192", # Ultra-fast, responsive model
+            temperature=0.0, # 0 temperature ensures it doesn't get creative
+            max_tokens=10
         )
-        return json.loads(response.choices[0].message.content)
-    except Exception:
-        return {"ticker": "", "provider": "", "cleanName": "Unknown", "description": "Asset Class Book", "error": True}
+        symbol = chat_completion.choices[0].message.content.strip().upper()
+        # Strip out any rogue quotes or periods the AI might append
+        symbol = symbol.replace('"', '').replace("'", "").replace(".", "")
+        return symbol
+    except Exception as e:
+        print(f"🤖 AI Parsing error, using raw query: {e}")
+        return user_query.strip().upper()
 
-def fetch_live_quote(ticker: str, provider: str):
-    if provider == "finnhub":
-        url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
-        try:
-            r = requests.get(url).json()
-            if r.get('c', 0) == 0: return None
-            return {
-                "symbol": ticker, "price": r['c'], "change": r.get('d', 0),
-                "pct": r.get('dp', 0), "low": r.get('l', r['c']),
-                "high": r.get('h', r['c']), "prev": r.get('pc', r['c']), "currency": "USD"
-            }
-        except: return None
-    else:
-        try:
-            t = yf.Ticker(ticker)
-            price = t.fast_info['last_price']
-            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD/Points"
-            return {
-                "symbol": ticker, "price": price, "change": 0, "pct": 0,
-                "low": price, "high": price, "prev": price, "currency": currency
-            }
-        except: return None
+# ==========================================
+# 3. APPLICATION API ROUTE MANAGEMENT
+# ==========================================
 
-@app.route('/')
-def index():
-    return render_template('index.html')
+@app.route("/")
+def serve_dashboard():
+    return send_from_directory(".", "Untitled-1.html")
 
-@app.route('/api/auth/register', methods=['POST'])
-def register():
-    data = request.json
-    username = data.get('username', '').lower().strip()
-    display_name = data.get('displayName', '').strip()
-    password = data.get('password', '').strip()
-    
+# --- AUTHENTICATION: REGISTER ---
+@app.route("/api/auth/register", methods=["POST"])
+def auth_register():
+    data = request.json or {}
+    username = data.get("username", "").strip().lower()
+    display_name = data.get("displayName", "").strip()
+    password = data.get("password", "")
+
     if not username or not display_name or not password:
         return jsonify({"error": "Please enter a username, display name, and password."}), 400
-    if len(password) < 4:
-        return jsonify({"error": "Password must be at least 4 characters long."}), 400
-    if username in MOCK_USERS_DB:
+
+    if users_col.find_one({"username": username}):
         return jsonify({"error": "Username is already taken."}), 400
 
-    MOCK_USERS_DB[username] = {
-        "username": username, "displayName": display_name, "password": password,
-        "cash": 10000.00, "holdings": {}, "history": []
+    new_user = {
+        "username": username,
+        "displayName": display_name,
+        "password": password, 
+        "cash": 10000.00,  
+        "portfolio": {}    
     }
-    session['user'] = username
-    user_view = MOCK_USERS_DB[username].copy()
-    del user_view['password']
-    return jsonify(user_view)
+    users_col.insert_one(new_user)
 
-@app.route('/api/auth/login', methods=['POST'])
-def login():
-    data = request.json
-    username = data.get('username', '').lower().strip()
-    password = data.get('password', '').strip()
-    
-    if username in MOCK_USERS_DB and MOCK_USERS_DB[username]['password'] == password:
-        session['user'] = username
-        user_view = MOCK_USERS_DB[username].copy()
-        del user_view['password']
-        return jsonify(user_view)
-        
-    return jsonify({"error": "Incorrect username or password."}), 401
-
-@app.route('/api/auth/logout', methods=['POST'])
-def logout():
-    session.pop('user', None)
-    return jsonify({"success": True})
-
-@app.route('/api/market/query', methods=['GET'])
-def query_market():
-    query_text = request.args.get('query', '')
-    if not query_text:
-        return jsonify({"error": "Please type a search query."}), 400
-        
-    ai_decision = interpret_asset_query(query_text)
-    if ai_decision.get('error') or not ai_decision.get('ticker'):
-        return jsonify({"error": "Could not identify that stock or index name."}), 404
-
-    quote = fetch_live_quote(ai_decision['ticker'], ai_decision['provider'])
-    if not quote:
-        return jsonify({"error": "Failed to pull live price. Please try again."}), 404
-        
-    quote["cleanName"] = ai_decision.get("cleanName", ai_decision["ticker"])
-    quote["assetClassDescription"] = ai_decision.get("description", "Market Asset")
-    return jsonify(quote)
-
-@app.route('/api/user/portfolio', methods=['GET'])
-def get_portfolio():
-    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Session expired. Please log in again."}), 401
-    
-    user = MOCK_USERS_DB[session['user']]
-    invested = 0
-    positions_list = []
-    
-    for sym, holding in list(user['holdings'].items()):
-        ai_meta = interpret_asset_query(sym)
-        quote = fetch_live_quote(sym, ai_meta.get('provider', 'finnhub'))
-        current_price = quote['price'] if quote else holding['cost']
-        
-        mkt_val = holding['shares'] * current_price
-        cost_basis = holding['shares'] * holding['cost']
-        gl = mkt_val - cost_basis
-        invested += mkt_val
-        
-        positions_list.append({
-            "symbol": ai_meta.get("cleanName", sym), 
-            "rawToken": sym, # Kept safe for click data transmission logic tracking
-            "shares": holding['shares'], "avgCost": holding['cost'],
-            "currentPrice": current_price, "marketValue": mkt_val, "gainLoss": gl
-        })
-        
-    net_val = user['cash'] + invested
-    yield_pct = ((net_val - 10000.00) / 10000.00) * 100
-    
     return jsonify({
-        "cash": user['cash'], "invested": invested, "netValue": net_val,
-        "returns": yield_pct, "positions": positions_list, "history": user['history']
+        "username": username,
+        "displayName": display_name,
+        "cash": 10000.00
+    }), 201
+
+# --- AUTHENTICATION: LOGIN ---
+@app.route("/api/auth/login", methods=["POST"])
+def auth_login():
+    data = request.json or {}
+    username = data.get("username", "").strip().lower()
+    password = data.get("password", "")
+
+    user = users_col.find_one({"username": username})
+    if not user or user["password"] != password:
+        return jsonify({"error": "Invalid username or password."}), 401
+
+    global CURRENT_ACTIVE_USER
+    CURRENT_ACTIVE_USER = username
+
+    return jsonify({
+        "username": user["username"],
+        "displayName": user["displayName"],
+        "cash": user.get("cash", 10000.00)
+    }), 200
+
+# --- NATURAL LANGUAGE / ASSET LOOKUP ENGINE (NOW WITH AI) ---
+@app.route("/api/market/query", methods=["GET"])
+def query_market():
+    raw_query = request.args.get("query", "").strip()
+    if not raw_query:
+        return jsonify({"error": "Please provide an asset identifier."}), 400
+
+    # 🤖 Unleash the AI to figure out what stock the user wants!
+    symbol = extract_ticker_with_ai(raw_query)
+    print(f"🔮 AI transformed user query '{raw_query}' into ticker target: '{symbol}'")
+
+    try:
+        ticker = ticker_engine.Ticker(symbol)
+        info = ticker.fast_info
+        
+        price = info.get('lastPrice')
+        if price is None:
+            return jsonify({"error": f"Could not find stock records matching symbol '{symbol}'."}), 404
+
+        high = info.get('dayHigh', price)
+        low = info.get('dayLow', price)
+        prev_close = info.get('previousClose', price)
+        
+        change = price - prev_close
+        pct = (change / prev_close) * 100 if prev_close else 0
+
+        return jsonify({
+            "symbol": symbol,
+            "cleanName": symbol,
+            "assetClassDescription": "AI-Parsed Global Market Node",
+            "price": float(price),
+            "change": float(change),
+            "pct": float(pct),
+            "high": float(high),
+            "low": float(low)
+        }), 200
+    except Exception as e:
+        return jsonify({"error": "Failed gathering market telemetry information."}), 500
+
+# --- PORTFOLIO & SUMMARY ENGINE ---
+@app.route("/api/user/portfolio", methods=["GET"])
+def get_user_portfolio():
+    username = globals().get("CURRENT_ACTIVE_USER", "")
+    user = users_col.find_one({"username": username})
+    
+    if not user:
+        return jsonify({"error": "Session unauthorized or profile missing."}), 401
+
+    cash = float(user.get("cash", 10000.00))
+    user_portfolio_data = user.get("portfolio", {})
+    
+    positions_array = []
+    total_invested_value = 0.0
+
+    for symbol, asset_info in user_portfolio_data.items():
+        shares = float(asset_info.get("shares", 0))
+        if shares <= 0:
+            continue
+            
+        total_cost = float(asset_info.get("total_cost", 0))
+        avg_cost = total_cost / shares if shares > 0 else 0
+        
+        current_price = avg_cost 
+        try:
+            tk = ticker_engine.Ticker(symbol)
+            current_price = float(tk.fast_info.get('lastPrice', avg_cost))
+        except:
+            pass
+
+        market_value = shares * current_price
+        total_invested_value += market_value
+        gain_loss = market_value - total_cost
+
+        positions_array.append({
+            "symbol": symbol,
+            "rawToken": symbol,
+            "shares": shares,
+            "avgCost": avg_cost,
+            "currentPrice": current_price,
+            "marketValue": market_value,
+            "gainLoss": gain_loss
+        })
+
+    net_value = cash + total_invested_value
+    returns_pct = ((net_value - 10000.0) / 10000.0) * 100.0
+
+    user_history_cursor = history_col.find({"username": username}).sort("timestamp", -1)
+    history_logs = []
+    for h in user_history_cursor:
+        history_logs.append({
+            "date": h.get("date"),
+            "type": h.get("type"),
+            "cleanSymbol": h.get("symbol"),
+            "shares": float(h.get("qty", 0)),
+            "price": float(h.get("price", 0)),
+            "sum": float(h.get("sum", 0)),
+            "pl": float(h.get("pl", 0))
+        })
+
+    return jsonify({
+        "cash": cash,
+        "netValue": net_value,
+        "invested": total_invested_value,
+        "returns": returns_pct,
+        "positions": positions_array,
+        "history": history_logs
+    }), 200
+
+# --- TRADE ORDER EXECUTION ---
+@app.route("/api/trade/execute", methods=["POST"])
+def execute_trade():
+    username = globals().get("CURRENT_ACTIVE_USER", "")
+    user = users_col.find_one({"username": username})
+    if not user:
+        return jsonify({"error": "Unauthorized session profile."}), 401
+
+    data = request.json or {}
+    symbol = data.get("symbol", "").upper()
+    qty = float(data.get("qty", 0))
+    mode = data.get("mode", "buy").lower()
+    execution_price = float(data.get("price", 0))
+
+    if qty <= 0 or execution_price <= 0:
+        return jsonify({"error": "Invalid order volume dimensions."}), 400
+
+    current_cash = float(user.get("cash", 10000.00))
+    portfolio = user.get("portfolio", {})
+    total_cost = qty * execution_price
+    realized_pl = 0.0
+
+    if mode == "buy":
+        if current_cash < total_cost:
+            return jsonify({"error": "Insufficient portfolio liquid funds available."}), 400
+        
+        current_cash -= total_cost
+        if symbol not in portfolio:
+            portfolio[symbol] = {"shares": 0.0, "total_cost": 0.0}
+        
+        portfolio[symbol]["shares"] += qty
+        portfolio[symbol]["total_cost"] += total_cost
+    elif mode == "sell":
+        if symbol not in portfolio or portfolio[symbol]["shares"] < qty:
+            return jsonify({"error": "Insufficient asset inventory shares."}), 400
+        
+        current_owned_shares = portfolio[symbol]["shares"]
+        current_total_cost = portfolio[symbol]["total_cost"]
+        avg_cost_paid = current_total_cost / current_owned_shares
+        
+        realized_pl = (execution_price - avg_cost_paid) * qty
+        current_cash += total_cost
+        
+        portfolio[symbol]["shares"] -= qty
+        portfolio[symbol]["total_cost"] -= (avg_cost_paid * qty)
+        
+        if portfolio[symbol]["shares"] <= 0:
+            del portfolio[symbol]
+
+    users_col.update_one(
+        {"username": username},
+        {"$set": {"cash": current_cash, "portfolio": portfolio}}
+    )
+
+    history_col.insert_one({
+        "username": username,
+        "date": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "type": mode.upper(),
+        "symbol": symbol,
+        "qty": qty,
+        "price": execution_price,
+        "sum": total_cost,
+        "pl": realized_pl,
+        "timestamp": datetime.now()
     })
 
-@app.route('/api/trade/execute', methods=['POST'])
-def execute_trade():
-    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Session expired. Please log in again."}), 401
-        
-    data = request.json
-    symbol = data.get('symbol', '').upper()
-    qty = float(data.get('qty', 0))
-    mode = data.get('mode', 'buy')
-    price = float(data.get('price', 0))
-    
-    if qty <= 0 or price <= 0:
-        return jsonify({"error": "Invalid order quantity or market price."}), 400
-        
-    user = MOCK_USERS_DB[session['user']]
-    total_cost = qty * price
-    clean_sym_text = get_clean_name_mapping(symbol)
-    
-    if mode == 'buy':
-        if user['cash'] < total_cost:
-            return jsonify({"error": "Insufficient funds. You do not have enough cash for this order."}), 400
-        user['cash'] -= total_cost
-        if symbol not in user['holdings']:
-            user['holdings'][symbol] = {"shares": 0.0, "cost": 0.0}
-            
-        ex_qty = user['holdings'][symbol]['shares']
-        ex_cost = user['holdings'][symbol]['cost']
-        user['holdings'][symbol]['shares'] += qty
-        user['holdings'][symbol]['cost'] = ((ex_qty * ex_cost) + total_cost) / user['holdings'][symbol]['shares']
-        
-        user['history'].insert(0, {"date": "Just Now", "type": "BUY", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": 0})
-    else:
-        if symbol not in user['holdings'] or (user['holdings'][symbol]['shares'] + 0.00001) < qty:
-            return jsonify({"error": "You do not own enough shares to fulfill this sale."}), 400
-            
-        cost_sold = qty * user['holdings'][symbol]['cost']
-        net_pl = total_cost - cost_sold
-        user['cash'] += total_cost
-        user['holdings'][symbol]['shares'] -= qty
-        
-        user['history'].insert(0, {"date": "Just Now", "type": "SELL", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": net_pl})
-        if user['holdings'][symbol]['shares'] <= 0.0001:
-            del user['holdings'][symbol]
-            
-    return jsonify({"success": True})
+    return jsonify({"message": "Order processed successfully!"}), 200
 
-@app.route('/api/leaderboard', methods=['GET'])
-def leaderboard():
-    board = []
-    for k, v in MOCK_USERS_DB.items():
-        invested = 0
-        for sym, holding in v['holdings'].items():
-            invested += holding['shares'] * holding['cost']
-        net_value = v['cash'] + invested
-        returns_pct = ((net_value - 10000.00) / 10000.00) * 100
-        board.append({"name": v['displayName'], "handle": k, "cash": v['cash'], "returns": returns_pct})
-    board = sorted(board, key=lambda x: x['returns'], reverse=True)
-    return jsonify(board)
+# --- LEADERBOARD ---
+@app.route("/api/leaderboard", methods=["GET"])
+def get_leaderboard():
+    all_users = users_col.find()
+    leaderboard_data = []
 
-if __name__ == '__main__':
-    app.run(debug=True)
+    for user in all_users:
+        cash = float(user.get("cash", 10000.00))
+        portfolio = user.get("portfolio", {})
+        
+        current_holdings_value = 0.0
+        for symbol, asset in portfolio.items():
+            try:
+                tk = ticker_engine.Ticker(symbol)
+                current_holdings_value += float(asset.get("shares", 0)) * float(tk.fast_info.get('lastPrice', 0))
+            except:
+                pass
+        
+        net_worth = cash + current_holdings_value
+        returns_pct = ((net_worth - 10000.0) / 10000.0) * 100.0
+        
+        leaderboard_data.append({
+            "name": user.get("displayName", "Anonymous Player"),
+            "handle": user.get("username", "player"),
+            "cash": cash,
+            "returns": returns_pct
+        })
+
+    leaderboard_data.sort(key=lambda x: x["returns"], reverse=True)
+    return jsonify(leaderboard_data[:10]), 200
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
