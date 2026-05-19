@@ -1,9 +1,6 @@
 flask
-flask-cors
 requests
 yfinance
 openai
 gunicorn
 groq
-pymongo
-dnspython
