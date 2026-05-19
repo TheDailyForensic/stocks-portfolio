@@ -71,7 +71,7 @@
       transition: background var(--transition), color var(--transition);
     }
 
-    /* FIX: Moved layers behind all standard interactable blocks using proper stack order */
+    /* Background presentation overlay settings sitting behind workspace clicks */
     .scanlines {
       position: fixed; inset: 0; z-index: 0; pointer-events: none !important;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px);
@@ -81,7 +81,6 @@
       background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
     }
 
-    /* FIX: Raised z-index relative to layout elements so they aren't covered by background overlays */
     .app-container { display: flex; min-height: 100vh; flex-direction: row; position: relative; z-index: 10; }
     .hidden { display: none !important; }
 
@@ -335,8 +334,7 @@
             <button class="filter-btn" data-filter="india">Indian Markets</button>
             <button class="filter-btn" data-filter="crypto">Indices & Commodities</button>
           </div>
-          <div class="trending-grid" id="trending-pills-box">
-            </div>
+          <div class="trending-grid" id="trending-pills-box"></div>
           
           <div class="form-group search-container">
             <label class="form-label">Search standard tickers (e.g. "RELIANCE", "NVDA", "AAPL")</label>
@@ -541,7 +539,7 @@
           pill.innerHTML = `<div class="t-sym">${i.sym.replace('.NS','')}</div><div class="t-lbl">${i.name}</div>`;
           pill.addEventListener("click", () => {
             document.getElementById("trade-search-input").value = i.sym;
-            this.executeTickerQuery();
+            App.executeTickerQuery();
           });
           container.appendChild(pill);
         });
@@ -662,8 +660,10 @@
               <td>$${i.marketValue.toFixed(2)}</td>
               <td class="${i.gainLoss >= 0 ? 'gain' : 'loss'}">${i.gainLoss >= 0 ? '+' : ''}$${i.gainLoss.toFixed(2)}</td>
             `;
-            tr.addEventListener("click", (trElement) => {
-              this.loadStockFromPortfolioClick(tr.dataset.lookupQuery);
+            
+            // FIXED CRASH: Replaced 'this' reference directly with App object context to avoid breaking interface metrics tracking
+            tr.addEventListener("click", () => {
+              App.loadStockFromPortfolioClick(tr.dataset.lookupQuery);
             });
             body.appendChild(tr);
           });
