@@ -9,9 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
   
   <style>
-    /* ============================================================
-       DYNAMIC THEME MAP CONFIGURATION
-       ============================================================ */
     :root {
       --font-display: 'Bebas Neue', sans-serif;
       --font-mono:    'Share Tech Mono', monospace;
@@ -71,7 +68,6 @@
       transition: background var(--transition), color var(--transition);
     }
 
-    /* CRITICAL INTERACTION FIX: Dropped z-index to -1 and forced pointer-events to none */
     .scanlines {
       position: fixed; inset: 0; z-index: -1; pointer-events: none !important;
       background: repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(0,0,0,0.02) 2px, rgba(0,0,0,0.02) 4px);
@@ -123,16 +119,30 @@
     .kpi-strip { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 1rem; margin-bottom: 1.5rem; }
     .kpi-card { background: var(--bg-card); border: 1px solid var(--border); padding: 1.25rem; border-radius: var(--radius-lg); }
     
-    .kpi-lbl-flex { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; }
+    .kpi-lbl-flex { display: flex; align-items: center; gap: 0.35rem; font-family: var(--font-mono); font-size: 0.7rem; color: var(--text-dim); text-transform: uppercase; position: relative; }
     .kpi-val { font-family: var(--font-mono); font-size: 1.5rem; font-weight: bold; margin-top: 0.25rem; }
 
+    /* CUSTOM TOOLTIP STYLING */
     .help-tooltip {
       display: inline-flex; align-items: center; justify-content: center;
       background: var(--border); color: var(--text-secondary); font-weight: bold;
       font-size: 0.65rem; width: 14px; height: 14px; border-radius: 50%;
-      cursor: help; transition: all var(--transition); text-transform: none; font-family: var(--font-body);
+      cursor: pointer; transition: all var(--transition); text-transform: none; font-family: var(--font-body);
     }
     .help-tooltip:hover { background: var(--accent); color: #000; }
+
+    .custom-tooltip-popup {
+      position: absolute; top: 100%; left: 0; width: 220px; background: var(--bg-elevated);
+      color: var(--text-primary); border: 1px solid var(--border-bright); border-radius: var(--radius);
+      padding: 0.6rem; font-family: var(--font-body); font-size: 0.75rem; text-transform: none;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3); z-index: 1000; display: none; margin-top: 5px;
+    }
+
+    .currency-disclaimer {
+      font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary);
+      background: var(--bg-input); border: 1px dashed var(--border); padding: 0.5rem;
+      border-radius: var(--radius); margin-bottom: 1rem; display: flex; align-items: center; gap: 0.5rem;
+    }
 
     .filter-strip { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-bottom: 1.25rem; }
     .filter-btn {
@@ -167,7 +177,6 @@
     .table-container { width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
     .data-table { width: 100%; border-collapse: collapse; font-size: 0.85rem; text-align: left; min-width: 600px; }
     .data-table th { font-family: var(--font-mono); font-size: 0.68rem; color: var(--text-dim); padding: 0.6rem 0.8rem; border-bottom: 1px solid var(--border); text-transform: uppercase; }
-    .data-table th .flex-th { display: flex; align-items: center; gap: 0.35rem; }
     .data-table td { padding: 0.85rem 0.8rem; font-family: var(--font-mono); border-bottom: 1px solid var(--border); color: var(--text-primary); }
     .data-table tr:hover { background: var(--bg-hover); }
     
@@ -193,7 +202,26 @@
 
     .chart-box-wrapper { width: 100%; height: 380px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; }
     .search-container { position: relative; }
-    .theme-switch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); }
+    .theme-switch-row { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1rem; }
+
+    /* CUSTOM WEBSITE STYLE TRANSACTION MODAL POPUP */
+    .custom-modal-overlay {
+      position: fixed; inset: 0; background: rgba(0, 0, 0, 0.75); backdrop-filter: blur(4px);
+      z-index: 9999; display: flex; align-items: center; justify-content: center; opacity: 0; pointer-events: none;
+      transition: opacity 0.2s ease;
+    }
+    .custom-modal-overlay.active { opacity: 1; pointer-events: auto; }
+    .custom-modal-box {
+      width: min(400px, 90%); background: var(--bg-card); border: 1px solid var(--border-bright);
+      padding: 1.5rem; border-radius: var(--radius-lg); box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+      transform: translateY(-20px); transition: transform 0.2s ease;
+    }
+    .custom-modal-overlay.active .custom-modal-box { transform: translateY(0); }
+    .modal-title { font-family: var(--font-display); font-size: 1.5rem; letter-spacing: 0.05em; margin-bottom: 0.5rem; text-transform: uppercase; }
+    .modal-msg { font-size: 0.9rem; margin-bottom: 1.5rem; color: var(--text-secondary); }
+    .modal-actions { display: flex; gap: 0.5rem; justify-content: flex-end; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border); padding: 0.6rem 1.2rem; font-family: var(--font-mono); font-size: 0.8rem; cursor: pointer; border-radius: var(--radius); }
+    .btn-secondary:hover { background: var(--bg-hover); }
 
     @media (max-width: 850px) {
       html { font-size: 14px; }
@@ -216,6 +244,17 @@
 
   <div class="scanlines"></div>
   <div class="noise-overlay"></div>
+
+  <div id="app-custom-modal" class="custom-modal-overlay">
+    <div class="custom-modal-box">
+      <h3 class="modal-title" id="modal-title-text">System Message</h3>
+      <p class="modal-msg" id="modal-message-body">Notification description placeholder.</p>
+      <div class="modal-actions" id="modal-buttons-wrapper">
+        <button class="btn-secondary" id="modal-cancel-btn">CANCEL</button>
+        <button class="btn-primary" id="modal-confirm-btn" style="width:auto; padding:0.6rem 1.2rem; font-size:0.8rem;">CONFIRM</button>
+      </div>
+    </div>
+  </div>
 
   <div id="screen-auth" class="auth-screen">
     <div class="auth-box">
@@ -255,7 +294,7 @@
           <input type="password" class="form-input" id="in-reg-pass" placeholder="Minimum 4 characters" />
         </div>
         <div class="form-error hidden" id="reg-error-box"></div>
-        <button class="btn-primary" id="btn-submit-register">CREATE ACCOUNT ($10,000 STARTING BONUS)</button>
+        <button class="btn-primary" id="btn-submit-register">CREATE ACCOUNT</button>
       </div>
     </div>
   </div>
@@ -285,21 +324,43 @@
         <div class="view-header">
           <div><h1 class="view-title">Account Summary</h1><p class="view-sub">Live tracker of your balance and open asset values</p></div>
         </div>
+
+        <div class="currency-disclaimer">
+          <span>ℹ️</span>
+          <span><strong>Currency Note:</strong> International stock market data arrives natively in USD ($) but is automatically converted and displayed here in Indian Rupees (₹). You can adjust this in Desk Configuration.</span>
+        </div>
+
         <div class="kpi-strip">
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Total Account Value <span class="help-tooltip" title="Cash sitting balance + the current market valuation of all your investments.">?</span></div>
-            <div class="kpi-val" id="p-kpi-total">$--</div>
+            <div class="kpi-lbl-flex">
+              Total Account Value 
+              <span class="help-tooltip">?</span>
+              <div class="custom-tooltip-popup">Cash sitting balance + the current market valuation of all your investments combined.</div>
+            </div>
+            <div class="kpi-val" id="p-kpi-total">₹--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Spendable Cash <span class="help-tooltip" title="Available fluid cash profile liquidity sitting on desk to write new trades.">?</span></div>
-            <div class="kpi-val" id="p-kpi-cash">$--</div>
+            <div class="kpi-lbl-flex">
+              Spendable Cash 
+              <span class="help-tooltip">?</span>
+              <div class="custom-tooltip-popup">Available fluid cash balance sitting on desk to execute and write new trades.</div>
+            </div>
+            <div class="kpi-val" id="p-kpi-cash">₹--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Total Value of Stocks <span class="help-tooltip" title="The current dollar amount value of all your active investments combined.">?</span></div>
-            <div class="kpi-val" id="p-kpi-invested">$--</div>
+            <div class="kpi-lbl-flex">
+              Total Value of Stocks 
+              <span class="help-tooltip">?</span>
+              <div class="custom-tooltip-popup">The current amount valuation of all your active asset holdings combined together.</div>
+            </div>
+            <div class="kpi-val" id="p-kpi-invested">₹--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Total Return (%) <span class="help-tooltip" title="Your lifetime profit or loss percentage since opening your account.">?</span></div>
+            <div class="kpi-lbl-flex">
+              Total Return (%) 
+              <span class="help-tooltip">?</span>
+              <div class="custom-tooltip-popup">Your total lifetime profit or loss percentage calculated since opening your account profile.</div>
+            </div>
             <div class="kpi-val" id="p-kpi-return">--</div>
           </div>
         </div>
@@ -327,7 +388,7 @@
       <section id="view-trade" class="view-panel hidden">
         <div class="view-header">
           <div><h1 class="view-title">Trade station</h1><p class="view-sub">Search global assets in plain English (AI handles the rest)</p></div>
-          <div style="font-family: var(--font-mono); background: var(--bg-card); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: var(--radius);" id="trade-cash-badge">Available Cash: $--</div>
+          <div style="font-family: var(--font-mono); background: var(--bg-card); border: 1px solid var(--border); padding: 0.5rem 1rem; border-radius: var(--radius);" id="trade-cash-badge">Available Cash: ₹--</div>
         </div>
         
         <div class="card search-card">
@@ -337,8 +398,7 @@
             <button class="filter-btn" data-filter="india">Indian Markets</button>
             <button class="filter-btn" data-filter="crypto">Indices & Commodities</button>
           </div>
-          <div class="trending-grid" id="trending-pills-box">
-            </div>
+          <div class="trending-grid" id="trending-pills-box"></div>
           
           <div class="form-group search-container">
             <label class="form-label">Search anything (e.g. "reliance price", "nvidia", "what is apple stock doing")</label>
@@ -357,7 +417,7 @@
               <h2 style="font-family: var(--font-display); font-size: 1.8rem; margin-top: 0.5rem;" id="t-display-name">Live Market Quote</h2>
             </div>
             <div style="text-align: right;">
-              <div style="font-family: var(--font-mono); font-size: 2rem; font-weight: bold;" id="t-display-price">$--</div>
+              <div style="font-family: var(--font-mono); font-size: 2rem; font-weight: bold;" id="t-display-price">₹--</div>
               <div style="font-family: var(--font-mono); font-size: 0.9rem;" id="t-display-change">--</div>
             </div>
           </div>
@@ -394,11 +454,11 @@
                 <div style="background: var(--bg-input); padding: 1rem; border: 1px solid var(--border); border-radius: var(--radius); margin-bottom: 1.25rem; font-family: var(--font-mono); font-size: 0.85rem;">
                   <div style="display:flex; justify-content: space-between; margin-bottom: 0.4rem;">
                     <span id="calc-preview-label">Total Estimated Cost</span>
-                    <span id="prev-cost">$0.00</span>
+                    <span id="prev-cost">₹0.00</span>
                   </div>
                   <div style="display:flex; justify-content: space-between; border-top: 1px dashed var(--border-bright); padding-top: 0.4rem;">
                     <span>Leftover Cash Balance</span>
-                    <span id="prev-residual">$--</span>
+                    <span id="prev-residual">₹--</span>
                   </div>
                 </div>
                 <button class="btn-primary" id="btn-dispatch-order">EXECUTE TRANSACTION</button>
@@ -468,6 +528,12 @@
             <span style="font-family: var(--font-mono); font-size: 0.9rem;">Toggle Dark / Light Visual Matrix</span>
             <button class="btn-primary" id="btn-toggle-theme-mode" style="width: auto; padding: 0.5rem 1.5rem;">LIGHT MODE</button>
           </div>
+
+          <h3 class="card-title">Display Currency</h3>
+          <div class="theme-switch-row">
+            <span style="font-family: var(--font-mono); font-size: 0.9rem;">Switch Base Active Metric Matrix</span>
+            <button class="btn-primary" id="btn-toggle-currency-mode" style="width: auto; padding: 0.5rem 1.5rem; background: var(--border-bright);">VIEW IN USD ($)</button>
+          </div>
         </div>
       </section>
     </main>
@@ -484,6 +550,8 @@
       tradeAsset: null,
       currentCategoryFilter: "all",
       userPositionsCache: {},
+      displayCurrency: "INR", // Primary default state configuration requested
+      conversionRate: 83.50,  # Fallback system matrix alignment placeholder
 
       trendingData: [
         { sym: "RELIANCE.NS", name: "Reliance Industries", cat: "india" },
@@ -502,6 +570,113 @@
         this.renderTrendingPills();
         this.setupCategoryFilters();
         this.setupThemeSystem();
+        this.setupCurrencySystem();
+        this.setupTooltipSystem();
+        this.setupKeyboardRouting();
+      },
+
+      // Custom Adaptive Alert/Confirm UI Engine
+      showCustomModal(title, text, showCancel, onConfirm) {
+        document.getElementById("modal-title-text").textContent = title;
+        document.getElementById("modal-message-body").textContent = text;
+        const cancelBtn = document.getElementById("modal-cancel-btn");
+        
+        if(showCancel) {
+          cancelBtn.classList.remove("hidden");
+        } else {
+          cancelBtn.classList.add("hidden");
+        }
+
+        const overlay = document.getElementById("app-custom-modal");
+        overlay.classList.add("active");
+
+        // Clear previous event listeners
+        const confirmBtn = document.getElementById("modal-confirm-btn");
+        const newConfirmBtn = confirmBtn.cloneNode(true);
+        confirmBtn.parentNode.replaceChild(newConfirmBtn, confirmBtn);
+
+        newConfirmBtn.addEventListener("click", () => {
+          overlay.classList.remove("active");
+          if(onConfirm) onConfirm();
+        });
+      },
+
+      setupKeyboardRouting() {
+        // Universal form routing across structural panels matching button clicks on Enter key
+        document.getElementById("form-login").addEventListener("keydown", (e) => {
+          if(e.key === "Enter") this.processLogin();
+        });
+        document.getElementById("form-register").addEventListener("keydown", (e) => {
+          if(e.key === "Enter") this.processRegister();
+        });
+        document.getElementById("trade-search-input").addEventListener("keydown", (e) => {
+          if(e.key === "Enter") this.executeTickerQuery();
+        });
+        document.getElementById("trade-qty-input").addEventListener("keydown", (e) => {
+          if(e.key === "Enter") this.dispatchOrderBlock();
+        });
+
+        document.getElementById("modal-cancel-btn").addEventListener("click", () => {
+          document.getElementById("app-custom-modal").classList.remove("active");
+        });
+      },
+
+      setupTooltipSystem() {
+        // Mobile-ready toggle popup for help elements
+        document.addEventListener("click", (e) => {
+          if (e.target.classList.contains("help-tooltip")) {
+            e.stopPropagation();
+            const popup = e.target.nextElementSibling;
+            const isVisible = popup.style.display === "block";
+            
+            // Hide any other active tooltips
+            document.querySelectorAll(".custom-tooltip-popup").forEach(p => p.style.display = "none");
+            popup.style.display = isVisible ? "none" : "block";
+          } else {
+            document.querySelectorAll(".custom-tooltip-popup").forEach(p => p.style.display = "none");
+          }
+        });
+      },
+
+      formatMoney(usdValue, nativeCurrency = "USD") {
+        let targetCurrency = this.displayCurrency;
+        let finalValue = usdValue;
+
+        if (targetCurrency === "INR") {
+          finalValue = usdValue * this.conversionRate;
+          return "₹" + finalValue.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        } else {
+          return "$" + finalValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+        }
+      },
+
+formatNativeAssetMoney(priceValue, assetCurrency) {
+        let finalValue = priceValue;
+        if(this.displayCurrency === "INR" && assetCurrency === "USD") {
+          finalValue = priceValue * this.conversionRate;
+          return "₹" + finalValue.toFixed(2);
+        } else if (this.displayCurrency === "USD" && assetCurrency === "INR") {
+          finalValue = priceValue / this.conversionRate;
+          return "$" + finalValue.toFixed(2);
+        }
+        
+        return (this.displayCurrency === "INR" ? "₹" : "$") + finalValue.toFixed(2);
+      },
+
+      setupCurrencySystem() {
+        const btn = document.getElementById("btn-toggle-currency-mode");
+        btn.addEventListener("click", () => {
+          this.displayCurrency = this.displayCurrency === "INR" ? "USD" : "INR";
+          btn.textContent = this.displayCurrency === "INR" ? "VIEW IN USD ($)" : "VIEW IN RUPEES (₹)";
+          btn.style.background = this.displayCurrency === "INR" ? "var(--border-bright)" : "var(--accent)";
+          btn.style.color = this.displayCurrency === "INR" ? "var(--text-primary)" : "#000";
+          
+          this.syncPortfolioView();
+          this.syncTradeView();
+          if(this.tradeAsset) {
+            this.executeTickerQuery();
+          }
+        });
       },
 
       setupThemeSystem() {
@@ -632,12 +807,13 @@
         if (!res.ok) return;
         const totals = await res.json();
 
-        this.activeUser.cash = totals.cash;
+        this.conversionRate = totals.usdToInrRate;
+        this.activeUser.cash = totals.cashUsd;
         this.userPositionsCache = {};
 
-        document.getElementById("p-kpi-total").textContent = "$" + totals.netValue.toFixed(2);
-        document.getElementById("p-kpi-cash").textContent = "$" + totals.cash.toFixed(2);
-        document.getElementById("p-kpi-invested").textContent = "$" + totals.invested.toFixed(2);
+        document.getElementById("p-kpi-total").textContent = this.formatMoney(totals.netValueUsd);
+        document.getElementById("p-kpi-cash").textContent = this.formatMoney(totals.cashUsd);
+        document.getElementById("p-kpi-invested").textContent = this.formatMoney(totals.investedUsd);
         
         const ret = document.getElementById("p-kpi-return");
         ret.textContent = (totals.returns >= 0 ? "+" : "") + totals.returns.toFixed(2) + "%";
@@ -650,18 +826,25 @@
         } else {
           totals.positions.forEach(i => {
             this.userPositionsCache[i.rawToken] = i.shares;
+            
+            // Re-normalize native data returns back through the layout engines
+            let displayCost = this.formatMoney(i.avgCostUsd);
+            let displayPrice = this.formatNativeAssetMoney(i.currentPriceNative, i.nativeCurrency);
+            let displayMktVal = this.formatMoney(i.marketValueUsd);
+            let displayGL = this.formatMoney(i.gainLossUsd);
+
             const tr = document.createElement("tr");
             tr.className = "clickable-stock-row";
             tr.dataset.lookupQuery = i.rawToken; 
             tr.innerHTML = `
               <td><span class="sym-badge">${i.symbol}</span></td>
               <td>${i.shares.toFixed(4)}</td>
-              <td>$${i.avgCost.toFixed(2)}</td>
-              <td>$${i.currentPrice.toFixed(2)}</td>
-              <td>$${i.marketValue.toFixed(2)}</td>
-              <td class="${i.gainLoss >= 0 ? 'gain' : 'loss'}">${i.gainLoss >= 0 ? '+' : ''}$${i.gainLoss.toFixed(2)}</td>
+              <td>${displayCost}</td>
+              <td>${displayPrice}</td>
+              <td>${displayMktVal}</td>
+              <td class="${i.gainLossUsd >= 0 ? 'gain' : 'loss'}">${i.gainLossUsd >= 0 ? '+' : ''}${displayGL}</td>
             `;
-            tr.addEventListener("click", (trElement) => {
+            tr.addEventListener("click", () => {
               this.loadStockFromPortfolioClick(tr.dataset.lookupQuery);
             });
             body.appendChild(tr);
@@ -675,14 +858,18 @@
         } else if (totals.history) {
           totals.history.forEach(h => {
             const tr = document.createElement("tr");
+            let histPrice = this.formatNativeAssetMoney(h.priceNative, h.currency);
+            let histSum = this.formatMoney(h.sumUsd);
+            let histPL = this.formatMoney(h.plUsd);
+
             tr.innerHTML = `
               <td>${h.date}</td>
               <td class="${h.type === 'BUY' ? 'gain' : 'loss'}">${h.type}</td>
               <td><span class="sym-badge">${h.cleanSymbol}</span></td>
               <td>${h.shares.toFixed(4)}</td>
-              <td>$${h.price.toFixed(2)}</td>
-              <td>$${h.sum.toFixed(2)}</td>
-              <td class="${h.pl >= 0 ? 'gain' : 'loss'}">${h.type === 'SELL' ? '$' + h.pl.toFixed(2) : '0.00'}</td>
+              <td>${histPrice}</td>
+              <td>${histSum}</td>
+              <td class="${h.plUsd >= 0 ? 'gain' : 'loss'}">${h.type === 'SELL' ? histPL : '0.00'}</td>
             `;
             histBody.appendChild(tr);
           });
@@ -696,7 +883,7 @@
       },
 
       syncTradeView() {
-        document.getElementById("trade-cash-badge").textContent = "Available Cash: $" + this.activeUser.cash.toFixed(2);
+        document.getElementById("trade-cash-badge").textContent = "Available Cash: " + this.formatMoney(this.activeUser.cash);
         document.getElementById("trade-qty-input").value = "";
         if(!this.tradeAsset) {
           document.getElementById("trade-search-input").value = "";
@@ -723,19 +910,23 @@
         }
 
         this.tradeAsset = data;
+        this.conversionRate = data.usdToInrRate;
         document.getElementById("trade-ticker-panel").classList.remove("hidden");
         
         document.getElementById("t-display-symbol").textContent = data.cleanName; 
         document.getElementById("t-display-name").textContent = data.assetClassDescription;
-        document.getElementById("t-display-price").textContent = "$" + data.price.toFixed(2);
+        
+        let localizedPrice = this.formatNativeAssetMoney(data.price, data.currency);
+        document.getElementById("t-display-price").textContent = localizedPrice;
         
         const chg = document.getElementById("t-display-change");
-        chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
+        let localizedChg = data.currency === "USD" && this.displayCurrency === "INR" ? data.change * this.conversionRate : data.change;
+        chg.textContent = (data.change >= 0 ? "+" : "") + localizedChg.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
         chg.className = data.change >= 0 ? "gain" : "loss";
 
-        document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
-        document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
-        document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
+        document.getElementById("t-stat-price").textContent = localizedPrice;
+        document.getElementById("t-stat-high").textContent = this.formatNativeAssetMoney(data.high, data.currency);
+        document.getElementById("t-stat-low").textContent = this.formatNativeAssetMoney(data.low, data.currency);
         document.getElementById("t-stat-rawtoken").textContent = data.symbol;
 
         this.updateSliderRangeContext();
@@ -755,13 +946,10 @@
 
       injectTradingViewGraph(tickerSymbol) {
         let tradingViewAssetString = tickerSymbol.toUpperCase();
-        
         if(tradingViewAssetString === "^IXIC") tradingViewAssetString = "NASDAQ:IXIC";
         else if(tradingViewAssetString === "^NSEI") tradingViewAssetString = "NSE:NIFTY";
         else if(tradingViewAssetString.endsWith(".NS")) {
           tradingViewAssetString = "NSE:" + tradingViewAssetString.replace(".NS", "");
-        } else if(tradingViewAssetString.endsWith(".BO")) {
-          tradingViewAssetString = "BSE:" + tradingViewAssetString.replace(".BO", "");
         }
 
         const currentTheme = document.body.getAttribute("data-theme") || "dark";
@@ -785,43 +973,57 @@
 
       runTradeCalculationPreview() {
         if(!this.tradeAsset) {
-          document.getElementById("prev-cost").textContent = "$0.00";
-          document.getElementById("prev-residual").textContent = "$" + this.activeUser.cash.toFixed(2);
+          document.getElementById("prev-cost").textContent = this.formatMoney(0);
+          document.getElementById("prev-residual").textContent = this.formatMoney(this.activeUser.cash);
           return;
         }
         const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
-        const sum = qty * this.tradeAsset.price;
-        const res = this.tradeMode === "buy" ? this.activeUser.cash - sum : this.activeUser.cash + sum;
+        
+        let priceInUsd = this.tradeAsset.currency === "INR" ? this.tradeAsset.price / this.conversionRate : this.tradeAsset.price;
+        const sumUsd = qty * priceInUsd;
+        const resUsd = this.tradeMode === "buy" ? this.activeUser.cash - sumUsd : this.activeUser.cash + sumUsd;
 
-        document.getElementById("prev-cost").textContent = "$" + sum.toFixed(2);
-        document.getElementById("prev-residual").textContent = "$" + res.toFixed(2);
-        document.getElementById("prev-residual").className = res < 0 ? "loss" : "";
+        document.getElementById("prev-cost").textContent = this.formatMoney(sumUsd);
+        document.getElementById("prev-residual").textContent = this.formatMoney(resUsd);
+        document.getElementById("prev-residual").className = resUsd < 0 ? "loss" : "";
       },
 
       async dispatchOrderBlock() {
         if (!this.tradeAsset) return;
         const qty = parseFloat(document.getElementById("trade-qty-input").value) || 0;
-        if(qty <= 0) { alert("Please type a valid number of shares to trade."); return; }
-
-        const res = await fetch('/api/trade/execute', {
-          method: 'POST',
-          headers: {'Content-Type': 'application/json'},
-          body: JSON.stringify({
-            symbol: this.tradeAsset.symbol,
-            qty: qty,
-            mode: this.tradeMode,
-            price: this.tradeAsset.price
-          })
-        });
-        
-        const data = await res.json();
-        if(!res.ok) {
-          alert(data.error);
-        } else {
-          alert("Order processed successfully!");
-          this.tradeAsset = null;
-          this.switchWorkspaceView("view-portfolio");
+        if(qty <= 0) { 
+          this.showCustomModal("Validation Error", "Please type a valid number of shares to trade.", false);
+          return; 
         }
+
+        // Web Style Custom Structural Confirmation Routing
+        this.showCustomModal(
+          "Confirm Order", 
+          `Are you sure you want to execute a ${this.tradeMode.toUpperCase()} order for ${qty} shares of ${this.tradeAsset.cleanName}?`, 
+          true, 
+          async () => {
+            const res = await fetch('/api/trade/execute', {
+              method: 'POST',
+              headers: {'Content-Type': 'application/json'},
+              body: JSON.stringify({
+                symbol: this.tradeAsset.symbol,
+                qty: qty,
+                mode: this.tradeMode,
+                price: this.tradeAsset.price
+              })
+            });
+            
+            const data = await res.json();
+            if(!res.ok) {
+              this.showCustomModal("Transaction Failed", data.error, false);
+            } else {
+              this.showCustomModal("Success", "Order verified and processed successfully on active registry nodes!", false, () => {
+                App.tradeAsset = null;
+                App.switchWorkspaceView("view-portfolio");
+              });
+            }
+          }
+        );
       },
 
       async syncLeaderboardView() {
@@ -835,7 +1037,7 @@
           tr.innerHTML = `
             <td><strong>#${i+1}</strong></td>
             <td>${trader.name} <span style="color:var(--text-dim); font-size:0.75rem;">@${trader.handle}</span></td>
-            <td>$${trader.cash.toFixed(2)}</td>
+            <td>${this.formatMoney(trader.cashUsd)}</td>
             <td class="${trader.returns >= 0 ? 'gain' : 'loss'}">${trader.returns >= 0 ? '+' : ''}${trader.returns.toFixed(2)}%</td>
           `;
           body.appendChild(tr);
@@ -850,7 +1052,7 @@
         tracks.forEach(t => {
           const div = document.createElement("div");
           div.className = "tt-item";
-          div.innerHTML = `<span class="tt-sym">${t}</span> <span>LIVE DESK CONNECTION STEADY</span>`;
+          div.innerHTML = `<span class="tt-sym">${t}</span> <span>LIVE DESK LOGGED STEADY</span>`;
           container.appendChild(div);
         });
       }
