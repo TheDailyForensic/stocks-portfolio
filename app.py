@@ -2,234 +2,342 @@ import os
 import json
 import requests
 import yfinance as yf
+from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
+from pymongo import MongoClient
+from bson import ObjectId
 
 app = Flask(__name__)
-app.secret_key = "DEVELOPMENT_SECRET_KEY_KEEP_THIS_SAFE"
+app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
 
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY")
+# ── API keys ──────────────────────────────────────────────────────────────────
+GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
+MONGO_URI       = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 
 groq_client = OpenAI(
     base_url="https://api.groq.com/openai/v1",
     api_key=GROQ_API_KEY
 )
 
-MOCK_USERS_DB = {}
+# ── MongoDB setup ─────────────────────────────────────────────────────────────
+mongo_client = MongoClient(MONGO_URI)
+db           = mongo_client["stocksim"]
+users_col    = db["users"]
 
-# Helper decoder to quickly clean up raw system tags into human text arrays
+# Ensure username is unique
+users_col.create_index("username", unique=True)
+
+STARTING_CASH = 10_000.00
+
+
+# ── Helpers ───────────────────────────────────────────────────────────────────
+def now_str():
+    return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
 def get_clean_name_mapping(ticker: str) -> str:
-    if ticker == "^IXIC": return "NASDAQ Composite"
-    if ticker == "^NSEI": return "NIFTY 50"
+    if ticker == "^IXIC":  return "NASDAQ"
+    if ticker == "^NSEI":  return "NIFTY 50"
     if ticker.endswith(".NS"): return ticker.replace(".NS", "")
     return ticker
 
 def interpret_asset_query(user_input: str) -> dict:
     system_instruction = """
     You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
-    
+
     Rules:
-    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA). cleanName is standard ticker. description is Company Name.
-    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS). cleanName is standard asset without .NS. description is Company Name.
-    3. For Nasdaq Index, ticker is '^IXIC', provider is 'yahoo', cleanName is 'NASDAQ Composite', description is 'US Tech Index'.
-    4. For Nifty 50 Index, ticker is '^NSEI', provider is 'yahoo', cleanName is 'NIFTY 50', description is 'NSE National Index'.
-    
-    Respond ONLY with a valid JSON matching this schema:
-    {"ticker": "STRING", "provider": "finnhub" or "yahoo", "cleanName": "STRING", "description": "STRING", "error": false}
+    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA).
+    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS).
+    3. For Nasdaq Index: ticker '^IXIC', provider 'yahoo', cleanName 'NASDAQ Composite'.
+    4. For Nifty 50:     ticker '^NSEI', provider 'yahoo', cleanName 'NIFTY 50'.
+
+    Respond ONLY with valid JSON:
+    {"ticker":"STRING","provider":"finnhub or yahoo","cleanName":"STRING","description":"STRING","error":false}
     """
     try:
-        response = groq_client.chat.completions.create(
+        resp = groq_client.chat.completions.create(
             model="llama-3.3-70b-versatile",
             response_format={"type": "json_object"},
             messages=[
                 {"role": "system", "content": system_instruction},
-                {"role": "user", "content": f"Query: '{user_input}'"}
+                {"role": "user",   "content": f"Query: '{user_input}'"}
             ]
         )
-        return json.loads(response.choices[0].message.content)
+        return json.loads(resp.choices[0].message.content)
     except Exception:
-        return {"ticker": "", "provider": "", "cleanName": "Unknown", "description": "Asset Class Book", "error": True}
+        return {"ticker": "", "provider": "", "cleanName": "Unknown",
+                "description": "Asset", "error": True}
 
 def fetch_live_quote(ticker: str, provider: str):
     if provider == "finnhub":
         url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
         try:
-            r = requests.get(url).json()
-            if r.get('c', 0) == 0: return None
+            r = requests.get(url, timeout=8).json()
+            if not r.get("c"): return None
             return {
-                "symbol": ticker, "price": r['c'], "change": r.get('d', 0),
-                "pct": r.get('dp', 0), "low": r.get('l', r['c']),
-                "high": r.get('h', r['c']), "prev": r.get('pc', r['c']), "currency": "USD"
+                "symbol": ticker,
+                "price":  r["c"],
+                "change": round(r.get("d",  0), 4),
+                "pct":    round(r.get("dp", 0), 4),
+                "low":    r.get("l", r["c"]),
+                "high":   r.get("h", r["c"]),
+                "prev":   r.get("pc", r["c"]),
+                "currency": "USD"
             }
-        except: return None
+        except Exception:
+            return None
     else:
         try:
             t = yf.Ticker(ticker)
-            price = t.fast_info['last_price']
-            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD/Points"
+            price = t.fast_info["last_price"]
+            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD"
             return {
-                "symbol": ticker, "price": price, "change": 0, "pct": 0,
-                "low": price, "high": price, "prev": price, "currency": currency
+                "symbol": ticker, "price": price,
+                "change": 0, "pct": 0,
+                "low": price, "high": price, "prev": price,
+                "currency": currency
             }
-        except: return None
+        except Exception:
+            return None
 
-@app.route('/')
+def get_user(username: str):
+    return users_col.find_one({"username": username})
+
+def safe_user_view(user: dict) -> dict:
+    """Return user dict without password or Mongo _id."""
+    u = dict(user)
+    u.pop("password", None)
+    u.pop("_id", None)
+    return u
+
+
+# ── Auth routes ───────────────────────────────────────────────────────────────
+@app.route("/")
 def index():
-    return render_template('index.html')
+    return render_template("index.html")
 
-@app.route('/api/auth/register', methods=['POST'])
+@app.route("/api/auth/register", methods=["POST"])
 def register():
-    data = request.json
-    username = data.get('username', '').lower().strip()
-    display_name = data.get('displayName', '').strip()
-    password = data.get('password', '').strip()
-    
-    if not username or not display_name or not password:
-        return jsonify({"error": "Please enter a username, display name, and password."}), 400
+    data        = request.json or {}
+    username    = data.get("username", "").lower().strip()
+    display     = data.get("displayName", "").strip()
+    password    = data.get("password", "").strip()
+
+    if not username or not display or not password:
+        return jsonify({"error": "Please fill in all fields."}), 400
     if len(password) < 4:
-        return jsonify({"error": "Password must be at least 4 characters long."}), 400
-    if username in MOCK_USERS_DB:
+        return jsonify({"error": "Password must be at least 4 characters."}), 400
+    if len(username) < 2:
+        return jsonify({"error": "Username must be at least 2 characters."}), 400
+
+    new_user = {
+        "username":    username,
+        "displayName": display,
+        "password":    password,   # NOTE: hash this in a real production app
+        "cash":        STARTING_CASH,
+        "holdings":    {},         # { "AAPL": {"shares": 5, "cost": 182.0} }
+        "history":     [],
+        "created_at":  now_str()
+    }
+    try:
+        users_col.insert_one(new_user)
+    except Exception:
         return jsonify({"error": "Username is already taken."}), 400
 
-    MOCK_USERS_DB[username] = {
-        "username": username, "displayName": display_name, "password": password,
-        "cash": 10000.00, "holdings": {}, "history": []
-    }
-    session['user'] = username
-    user_view = MOCK_USERS_DB[username].copy()
-    del user_view['password']
-    return jsonify(user_view)
+    session["user"] = username
+    return jsonify(safe_user_view(new_user))
 
-@app.route('/api/auth/login', methods=['POST'])
+@app.route("/api/auth/login", methods=["POST"])
 def login():
-    data = request.json
-    username = data.get('username', '').lower().strip()
-    password = data.get('password', '').strip()
-    
-    if username in MOCK_USERS_DB and MOCK_USERS_DB[username]['password'] == password:
-        session['user'] = username
-        user_view = MOCK_USERS_DB[username].copy()
-        del user_view['password']
-        return jsonify(user_view)
-        
-    return jsonify({"error": "Incorrect username or password."}), 401
+    data     = request.json or {}
+    username = data.get("username", "").lower().strip()
+    password = data.get("password", "").strip()
 
-@app.route('/api/auth/logout', methods=['POST'])
+    user = get_user(username)
+    if not user or user["password"] != password:
+        return jsonify({"error": "Incorrect username or password."}), 401
+
+    session["user"] = username
+    return jsonify(safe_user_view(user))
+
+@app.route("/api/auth/logout", methods=["POST"])
 def logout():
-    session.pop('user', None)
+    session.pop("user", None)
     return jsonify({"success": True})
 
-@app.route('/api/market/query', methods=['GET'])
-def query_market():
-    query_text = request.args.get('query', '')
-    if not query_text:
-        return jsonify({"error": "Please type a search query."}), 400
-        
-    ai_decision = interpret_asset_query(query_text)
-    if ai_decision.get('error') or not ai_decision.get('ticker'):
-        return jsonify({"error": "Could not identify that stock or index name."}), 404
 
-    quote = fetch_live_quote(ai_decision['ticker'], ai_decision['provider'])
+# ── Market data ───────────────────────────────────────────────────────────────
+@app.route("/api/market/query")
+def query_market():
+    q = request.args.get("query", "").strip()
+    if not q:
+        return jsonify({"error": "No query provided."}), 400
+
+    ai = interpret_asset_query(q)
+    if ai.get("error") or not ai.get("ticker"):
+        return jsonify({"error": "Could not identify that stock or index."}), 404
+
+    quote = fetch_live_quote(ai["ticker"], ai["provider"])
     if not quote:
-        return jsonify({"error": "Failed to pull live price. Please try again."}), 404
-        
-    quote["cleanName"] = ai_decision.get("cleanName", ai_decision["ticker"])
-    quote["assetClassDescription"] = ai_decision.get("description", "Market Asset")
+        return jsonify({"error": "Failed to fetch live price. Try again."}), 404
+
+    quote["cleanName"]           = ai.get("cleanName", ai["ticker"])
+    quote["assetClassDescription"] = ai.get("description", "Market Asset")
     return jsonify(quote)
 
-@app.route('/api/user/portfolio', methods=['GET'])
+
+# ── Portfolio ─────────────────────────────────────────────────────────────────
+@app.route("/api/user/portfolio")
 def get_portfolio():
-    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Session expired. Please log in again."}), 401
-    
-    user = MOCK_USERS_DB[session['user']]
-    invested = 0
+    if "user" not in session:
+        return jsonify({"error": "Not logged in."}), 401
+
+    user = get_user(session["user"])
+    if not user:
+        return jsonify({"error": "Account not found."}), 401
+
+    invested       = 0.0
     positions_list = []
-    
-    for sym, holding in list(user['holdings'].items()):
-        ai_meta = interpret_asset_query(sym)
-        quote = fetch_live_quote(sym, ai_meta.get('provider', 'finnhub'))
-        current_price = quote['price'] if quote else holding['cost']
-        
-        mkt_val = holding['shares'] * current_price
-        cost_basis = holding['shares'] * holding['cost']
-        gl = mkt_val - cost_basis
+
+    for sym, holding in user.get("holdings", {}).items():
+        # PERFORMANCE FIX: Inferred provider statically instead of looping LLM queries
+        provider = "yahoo" if (".NS" in sym or "^" in sym) else "finnhub"
+        quote = fetch_live_quote(sym, provider)
+
+        current_price = quote["price"] if quote else holding["cost"]
+        mkt_val       = holding["shares"] * current_price
+        cost_basis    = holding["shares"] * holding["cost"]
+        gl            = mkt_val - cost_basis
+        gl_pct        = ((current_price - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
+
         invested += mkt_val
-        
         positions_list.append({
-            "symbol": ai_meta.get("cleanName", sym), 
-            "rawToken": sym, # Kept safe for click data transmission logic tracking
-            "shares": holding['shares'], "avgCost": holding['cost'],
-            "currentPrice": current_price, "marketValue": mkt_val, "gainLoss": gl
+            "symbol":       get_clean_name_mapping(sym),
+            "rawToken":     sym,
+            "shares":       holding["shares"],
+            "avgCost":      holding["cost"],
+            "currentPrice": current_price,
+            "marketValue":  mkt_val,
+            "gainLoss":     gl,
+            "gainLossPct":  gl_pct
         })
-        
-    net_val = user['cash'] + invested
-    yield_pct = ((net_val - 10000.00) / 10000.00) * 100
-    
+
+    net_val    = user["cash"] + invested
+    yield_pct  = ((net_val - STARTING_CASH) / STARTING_CASH) * 100
+
     return jsonify({
-        "cash": user['cash'], "invested": invested, "netValue": net_val,
-        "returns": yield_pct, "positions": positions_list, "history": user['history']
+        "cash":      user["cash"],
+        "invested":  invested,
+        "netValue":  net_val,
+        "returns":   yield_pct,
+        "positions": positions_list,
+        "history":   user.get("history", [])
     })
 
-@app.route('/api/trade/execute', methods=['POST'])
-def execute_trade():
-    if 'user' not in session or session['user'] not in MOCK_USERS_DB:
-        return jsonify({"error": "Session expired. Please log in again."}), 401
-        
-    data = request.json
-    symbol = data.get('symbol', '').upper()
-    qty = float(data.get('qty', 0))
-    mode = data.get('mode', 'buy')
-    price = float(data.get('price', 0))
-    
-    if qty <= 0 or price <= 0:
-        return jsonify({"error": "Invalid order quantity or market price."}), 400
-        
-    user = MOCK_USERS_DB[session['user']]
-    total_cost = qty * price
-    clean_sym_text = get_clean_name_mapping(symbol)
-    
-    if mode == 'buy':
-        if user['cash'] < total_cost:
-            return jsonify({"error": "Insufficient funds. You do not have enough cash for this order."}), 400
-        user['cash'] -= total_cost
-        if symbol not in user['holdings']:
-            user['holdings'][symbol] = {"shares": 0.0, "cost": 0.0}
-            
-        ex_qty = user['holdings'][symbol]['shares']
-        ex_cost = user['holdings'][symbol]['cost']
-        user['holdings'][symbol]['shares'] += qty
-        user['holdings'][symbol]['cost'] = ((ex_qty * ex_cost) + total_cost) / user['holdings'][symbol]['shares']
-        
-        user['history'].insert(0, {"date": "Just Now", "type": "BUY", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": 0})
-    else:
-        if symbol not in user['holdings'] or (user['holdings'][symbol]['shares'] + 0.00001) < qty:
-            return jsonify({"error": "You do not own enough shares to fulfill this sale."}), 400
-            
-        cost_sold = qty * user['holdings'][symbol]['cost']
-        net_pl = total_cost - cost_sold
-        user['cash'] += total_cost
-        user['holdings'][symbol]['shares'] -= qty
-        
-        user['history'].insert(0, {"date": "Just Now", "type": "SELL", "symbol": symbol, "cleanSymbol": clean_sym_text, "shares": qty, "price": price, "sum": total_cost, "pl": net_pl})
-        if user['holdings'][symbol]['shares'] <= 0.0001:
-            del user['holdings'][symbol]
-            
-    return jsonify({"success": True})
 
-@app.route('/api/leaderboard', methods=['GET'])
+# ── Trading ───────────────────────────────────────────────────────────────────
+@app.route("/api/trade/execute", methods=["POST"])
+def execute_trade():
+    if "user" not in session:
+        return jsonify({"error": "Not logged in."}), 401
+
+    data   = request.json or {}
+    symbol = data.get("symbol", "").upper().strip()
+    qty    = float(data.get("qty", 0))
+    mode   = data.get("mode", "buy")
+    price  = float(data.get("price", 0))
+
+    if qty <= 0 or price <= 0:
+        return jsonify({"error": "Invalid quantity or price."}), 400
+
+    user = get_user(session["user"])
+    if not user:
+        return jsonify({"error": "Account not found."}), 401
+
+    holdings   = user.get("holdings", {})
+    cash       = user["cash"]
+    total_cost = round(qty * price, 6)
+    clean_sym  = get_clean_name_mapping(symbol)
+    timestamp  = now_str()
+    pl         = 0.0
+
+    if mode == "buy":
+        if cash < total_cost:
+            return jsonify({"error": "Insufficient funds for this order."}), 400
+
+        cash -= total_cost
+        if symbol not in holdings:
+            holdings[symbol] = {"shares": 0.0, "cost": 0.0}
+
+        prev_shares = holdings[symbol]["shares"]
+        prev_cost   = holdings[symbol]["cost"]
+        new_shares  = prev_shares + qty
+        # Weighted average cost basis
+        holdings[symbol]["shares"] = new_shares
+        holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + total_cost) / new_shares
+
+    else:  # sell
+        owned = holdings.get(symbol, {}).get("shares", 0)
+        if owned < qty - 1e-9:
+            return jsonify({"error": f"You only own {owned:.4f} shares of {clean_sym}."}), 400
+
+        avg_cost   = holdings[symbol]["cost"]
+        pl         = round((price - avg_cost) * qty, 4)   # realised P/L
+        cash      += total_cost
+        holdings[symbol]["shares"] -= qty
+
+        if holdings[symbol]["shares"] <= 1e-9:
+            del holdings[symbol]
+
+    history_entry = {
+        "date":        timestamp,
+        "type":        "BUY" if mode == "buy" else "SELL",
+        "symbol":      symbol,
+        "cleanSymbol": clean_sym,
+        "shares":      qty,
+        "price":       price,
+        "sum":         total_cost,
+        "pl":          pl
+    }
+
+    # Persist to MongoDB
+    users_col.update_one(
+        {"username": session["user"]},
+        {
+            "$set":   {"cash": round(cash, 6), "holdings": holdings},
+            "$push":  {"history": {"$each": [history_entry], "$position": 0}}
+        }
+    )
+
+    return jsonify({"success": True, "pl": pl, "newCash": round(cash, 2)})
+
+
+# ── Leaderboard ───────────────────────────────────────────────────────────────
+@app.route("/api/leaderboard")
 def leaderboard():
     board = []
-    for k, v in MOCK_USERS_DB.items():
-        invested = 0
-        for sym, holding in v['holdings'].items():
-            invested += holding['shares'] * holding['cost']
-        net_value = v['cash'] + invested
-        returns_pct = ((net_value - 10000.00) / 10000.00) * 100
-        board.append({"name": v['displayName'], "handle": k, "cash": v['cash'], "returns": returns_pct})
-    board = sorted(board, key=lambda x: x['returns'], reverse=True)
+    for user in users_col.find({}, {"password": 0, "_id": 0}):
+        # Fixed loop math lookup safely using current fallback logic
+        invested = sum(
+            h["shares"] * h["cost"]
+            for h in user.get("holdings", {}).values()
+        )
+        net_value   = user["cash"] + invested
+        returns_pct = ((net_value - STARTING_CASH) / STARTING_CASH) * 100
+        trade_count = len(user.get("history", []))
+        board.append({
+            "name":       user["displayName"],
+            "handle":     user["username"],
+            "cash":       user["cash"],
+            "netValue":   net_value,
+            "returns":    returns_pct,
+            "tradeCount": trade_count
+        })
+
+    board.sort(key=lambda x: x["returns"], reverse=True)
     return jsonify(board)
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     app.run(debug=True)
