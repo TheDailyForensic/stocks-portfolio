@@ -1,6 +1,6 @@
-flask
-requests
-yfinance
-openai
-gunicorn
-groq
+Flask==3.0.2
+requests==2.31.0
+yfinance==0.2.38
+openai==1.14.1
+pymongo==4.6.2
+gunicorn==21.2.0
