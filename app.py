@@ -26,11 +26,10 @@ mongo_client = MongoClient(MONGO_URI)
 db           = mongo_client["stocksim"]
 users_col    = db["users"]
 
-# Ensure username is unique
 users_col.create_index("username", unique=True)
 
-STARTING_CASH = 10_000.00
-
+STARTING_CASH_USD = 10_000.00
+USD_TO_INR_RATE  = 83.50  # Dynamic base fallback conversion rate
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def now_str():
@@ -90,7 +89,6 @@ def fetch_live_quote(ticker: str, provider: str):
     else:
         try:
             t = yf.Ticker(ticker)
-            # Safe yfinance patch: Use .history() instead of unreliable .fast_info
             hist = t.history(period="1d")
             if hist.empty:
                 return None
@@ -118,7 +116,6 @@ def get_user(username: str):
     return users_col.find_one({"username": username})
 
 def safe_user_view(user: dict) -> dict:
-    """Return user dict without password or Mongo _id."""
     u = dict(user)
     u.pop("password", None)
     u.pop("_id", None)
@@ -148,7 +145,7 @@ def register():
         "username":    username,
         "displayName": display,
         "password":    password,
-        "cash":        STARTING_CASH,
+        "cash":        STARTING_CASH_USD,  # Balances kept in USD internally
         "holdings":    {},
         "history":     [],
         "created_at":  now_str()
@@ -197,6 +194,7 @@ def query_market():
 
     quote["cleanName"]           = ai.get("cleanName", ai["ticker"])
     quote["assetClassDescription"] = ai.get("description", "Market Asset")
+    quote["usdToInrRate"]        = USD_TO_INR_RATE
     return jsonify(quote)
 
 
@@ -210,42 +208,51 @@ def get_portfolio():
     if not user:
         return jsonify({"error": "Account not found."}), 401
 
-    invested       = 0.0
+    invested_usd   = 0.0
     positions_list = []
 
     for sym, holding in user.get("holdings", {}).items():
         ai    = interpret_asset_query(sym)
         quote = fetch_live_quote(sym, ai.get("provider", "finnhub"))
 
+        # Raw data matching logic in USD standard
         current_price = quote["price"] if quote else holding["cost"]
-        mkt_val       = holding["shares"] * current_price
-        cost_basis    = holding["shares"] * holding["cost"]
-        gl            = mkt_val - cost_basis
-        gl_pct        = ((current_price - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
+        
+        # If the asset comes from Yahoo in INR (e.g. Indian Stocks), convert tracking elements to USD base internally
+        if quote and quote["currency"] == "INR":
+            current_price_usd = current_price / USD_TO_INR_RATE
+        else:
+            current_price_usd = current_price
 
-        invested += mkt_val
+        mkt_val_usd   = holding["shares"] * current_price_usd
+        cost_basis_usd = holding["shares"] * holding["cost"]
+        gl_usd         = mkt_val_usd - cost_basis_usd
+        gl_pct        = ((current_price_usd - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
+
+        invested_usd += mkt_val_usd
         positions_list.append({
             "symbol":       ai.get("cleanName", sym),
             "rawToken":     sym,
             "shares":       holding["shares"],
-            "avgCost":      holding["cost"],
-            "currentPrice": current_price,
-            "marketValue":  mkt_val,
-            "gainLoss":     gl,
-            "gainLossPct":  gl_pct,
-            "currency":     quote["currency"] if quote else "USD"
+            "avgCostUsd":   holding["cost"],
+            "currentPriceNative": current_price,
+            "nativeCurrency": quote["currency"] if quote else "USD",
+            "marketValueUsd":  mkt_val_usd,
+            "gainLossUsd":     gl_usd,
+            "gainLossPct":  gl_pct
         })
 
-    net_val    = user["cash"] + invested
-    yield_pct  = ((net_val - STARTING_CASH) / STARTING_CASH) * 100
+    net_val_usd = user["cash"] + invested_usd
+    yield_pct  = ((net_val_usd - STARTING_CASH_USD) / STARTING_CASH_USD) * 100
 
     return jsonify({
-        "cash":      user["cash"],
-        "invested":  invested,
-        "netValue":  net_val,
+        "cashUsd":      user["cash"],
+        "investedUsd":  invested_usd,
+        "netValueUsd":  net_val_usd,
         "returns":   yield_pct,
         "positions": positions_list,
-        "history":   user.get("history", [])
+        "history":   user.get("history", []),
+        "usdToInrRate": USD_TO_INR_RATE
     })
 
 
@@ -259,50 +266,51 @@ def execute_trade():
     symbol = data.get("symbol", "").upper().strip()
     qty    = float(data.get("qty", 0))
     mode   = data.get("mode", "buy")
-    price  = float(data.get("price", 0))
+    price_native = float(data.get("price", 0)) # Sent over in native currency (USD or INR)
 
-    if qty <= 0 or price <= 0:
+    if qty <= 0 or price_native <= 0:
         return jsonify({"error": "Invalid quantity or price."}), 400
 
     user = get_user(session["user"])
     if not user:
         return jsonify({"error": "Account not found."}), 401
 
+    is_indian = (".NS" in symbol or "NSEI" in symbol)
+    price_usd = price_native / USD_TO_INR_RATE if is_indian else price_native
+
     holdings   = user.get("holdings", {})
-    cash       = user["cash"]
-    total_cost = round(qty * price, 6)
+    cash_usd   = user["cash"]
+    total_cost_usd = round(qty * price_usd, 6)
     clean_sym  = get_clean_name_mapping(symbol)
     timestamp  = now_str()
-    pl         = 0.0
+    pl_usd     = 0.0
 
     if mode == "buy":
-        if cash < total_cost:
+        if cash_usd < total_cost_usd:
             return jsonify({"error": "Insufficient funds for this order."}), 400
 
-        cash -= total_cost
+        cash_usd -= total_cost_usd
         if symbol not in holdings:
             holdings[symbol] = {"shares": 0.0, "cost": 0.0}
 
         prev_shares = holdings[symbol]["shares"]
-        prev_cost   = holdings[symbol]["cost"]
+        prev_cost_usd = holdings[symbol]["cost"]
         new_shares  = prev_shares + qty
         holdings[symbol]["shares"] = new_shares
-        holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + total_cost) / new_shares
+        holdings[symbol]["cost"]   = ((prev_shares * prev_cost_usd) + total_cost_usd) / new_shares
 
     else:  # sell
         owned = holdings.get(symbol, {}).get("shares", 0)
         if owned < qty - 1e-9:
             return jsonify({"error": f"You only own {owned:.4f} shares of {clean_sym}."}), 400
 
-        avg_cost   = holdings[symbol]["cost"]
-        pl         = round((price - avg_cost) * qty, 4)
-        cash      += total_cost
+        avg_cost_usd = holdings[symbol]["cost"]
+        pl_usd       = round((price_usd - avg_cost_usd) * qty, 4)
+        cash_usd    += total_cost_usd
         holdings[symbol]["shares"] -= qty
 
         if holdings[symbol]["shares"] <= 1e-9:
             del holdings[symbol]
-
-    currency = "INR" if (".NS" in symbol or "NSEI" in symbol) else "USD"
 
     history_entry = {
         "date":        timestamp,
@@ -310,21 +318,22 @@ def execute_trade():
         "symbol":      symbol,
         "cleanSymbol": clean_sym,
         "shares":      qty,
-        "price":       price,
-        "sum":         total_cost,
-        "pl":          pl,
-        "currency":    currency
+        "priceNative": price_native,
+        "priceUsd":    price_usd,
+        "sumUsd":      total_cost_usd,
+        "plUsd":       pl_usd,
+        "currency":    "INR" if is_indian else "USD"
     }
 
     users_col.update_one(
         {"username": session["user"]},
         {
-            "$set":   {"cash": round(cash, 6), "holdings": holdings},
+            "$set":   {"cash": round(cash_usd, 6), "holdings": holdings},
             "$push":  {"history": {"$each": [history_entry], "$position": 0}}
         }
     )
 
-    return jsonify({"success": True, "pl": pl, "newCash": round(cash, 2)})
+    return jsonify({"success": True, "plUsd": pl_usd, "newCashUsd": round(cash_usd, 6)})
 
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
@@ -332,18 +341,18 @@ def execute_trade():
 def leaderboard():
     board = []
     for user in users_col.find({}, {"password": 0, "_id": 0}):
-        invested = sum(
-            h["shares"] * h["cost"]
-            for h in user.get("holdings", {}).values()
-        )
-        net_value   = user["cash"] + invested
-        returns_pct = ((net_value - STARTING_CASH) / STARTING_CASH) * 100
-        trade_count = len(user.get("history", []))
+        invested_usd = 0.0
+        for sym, h in user.get("holdings", {}).items():
+            invested_usd += h["shares"] * h["cost"]
+            
+        net_value_usd = user["cash"] + invested_usd
+        returns_pct   = ((net_value_usd - STARTING_CASH_USD) / STARTING_CASH_USD) * 100
+        trade_count   = len(user.get("history", []))
         board.append({
             "name":       user["displayName"],
             "handle":     user["username"],
-            "cash":       user["cash"],
-            "netValue":   net_value,
+            "cashUsd":    user["cash"],
+            "netValueUsd": net_value_usd,
             "returns":    returns_pct,
             "tradeCount": trade_count
         })
