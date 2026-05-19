@@ -9,9 +9,6 @@
   <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=Bebas+Neue&family=DM+Sans:wght@300;400;500;700&display=swap" rel="stylesheet" />
   
   <style>
-    /* ============================================================
-       CYBERPUNK BRUTALIST NEURAL TERMINAL SYSTEM (ANIMATED)
-       ============================================================ */
     :root {
       --bg:          #030609;
       --bg-card:     #070c12;
@@ -28,6 +25,8 @@
       --accent-glow: rgba(0, 255, 136, 0.25);
       --red:         #ff3366;
       --red-glow:    rgba(255, 51, 102, 0.25);
+      --orange:      #ffaa00;
+      --orange-glow: rgba(255, 170, 0, 0.2);
       --font-display: 'Bebas Neue', sans-serif;
       --font-mono:    'Share Tech Mono', monospace;
       --font-body:    'DM Sans', sans-serif;
@@ -50,7 +49,6 @@
       position: relative;
     }
 
-    /* ── HYPER ANIMATED ADVANCED BACKGROUNDS ── */
     body::before {
       content: ''; position: fixed; inset: 0; z-index: -2;
       background: radial-gradient(circle at 80% 20%, rgba(0, 255, 136, 0.04) 0%, transparent 40%),
@@ -74,7 +72,6 @@
     .app-container { display: flex; min-height: 100vh; flex-direction: row; }
     .hidden { display: none !important; }
 
-    /* ── AUTH VIEW ANIMATION ── */
     .auth-screen { display: flex; align-items: center; justify-content: center; width: 100vw; min-height: 100vh; padding: 1rem; }
     .auth-box { 
       width: min(460px, 100%); background: var(--bg-card); border: 1px solid var(--border); padding: 2.5rem; border-radius: var(--radius-lg);
@@ -98,7 +95,6 @@
     }
     .auth-tab.active { border: 1px solid var(--border-bright); color: var(--accent); background: var(--bg-hover); text-shadow: 0 0 8px var(--accent-glow); }
 
-    /* ── PERSISTENT SIDEBAR NAVIGATION ── */
     .sidebar {
       width: var(--sidebar-w); background: var(--bg-card); border-right: 1px solid var(--border);
       display: flex; flex-direction: column; padding: 2rem 1.2rem; position: fixed; top: 0; bottom: 34px; left: 0; z-index: 100;
@@ -115,12 +111,11 @@
       position: relative; transition: all var(--transition); display: flex; align-items: center; justify-content: space-between;
     }
     .nav-btn:hover { color: var(--text-primary); background: var(--bg-hover); padding-left: 1.25rem; }
-    .nav-btn.active { color: var(--accent); background: var(--bg-hover); border-left: 3px solid var(--accent); box-shadow: shadow: inset 10px 0 20px rgba(0,255,136,0.02); padding-left: 1.25rem; font-weight: bold; text-shadow: 0 0 10px var(--accent-glow); }
+    .nav-btn.active { color: var(--accent); background: var(--bg-hover); border-left: 3px solid var(--accent); padding-left: 1.25rem; font-weight: bold; text-shadow: 0 0 10px var(--accent-glow); }
 
     .btn-logout { background: transparent; border: 1px solid var(--border); color: var(--red); padding: 0.6rem; font-family: var(--font-mono); font-size: 0.8rem; cursor: pointer; border-radius: var(--radius); transition: all var(--transition); text-transform: uppercase; }
     .btn-logout:hover { background: rgba(255,51,102,0.1); border-color: var(--red); box-shadow: 0 0 15px var(--red-glow); }
     
-    /* ── PANELS & GENERAL CARDS ── */
     .workspace { flex-grow: 1; margin-left: var(--sidebar-w); padding: 2.5rem 2.5rem 5rem 2.5rem; width: calc(100% - var(--sidebar-w)); }
     .view-panel { animation: viewFadeIn 0.4s ease-out forwards; }
     @keyframes viewFadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
@@ -153,7 +148,6 @@
     }
     .help-tooltip:hover { background: var(--text-secondary); color: #000; }
 
-    /* ── FORM ELEMENTS ── */
     .form-group { margin-bottom: 1.5rem; }
     .form-label { display: block; font-family: var(--font-mono); font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; margin-bottom: 0.5rem; letter-spacing: 0.05em; }
     .form-input { 
@@ -168,44 +162,49 @@
       transition: all var(--transition); box-shadow: 0 4px 20px var(--accent-glow);
     }
     .btn-primary:hover { background: var(--accent-dim); transform: translateY(-1px); box-shadow: 0 6px 25px rgba(0,255,136,0.4); }
-    .btn-primary:active { transform: translateY(1px); }
     
     .form-error { background: rgba(255,51,102,0.08); border-left: 3px solid var(--red); color: #ff6688; font-family: var(--font-mono); font-size: 0.85rem; padding: 0.85rem; margin-bottom: 1.5rem; border-radius: var(--radius); animation: shake 0.3s cubic-bezier(.36,.07,.19,.97) both; }
     @keyframes shake { 10%, 90% { transform: translate3d(-1px, 0, 0); } 20%, 80% { transform: translate3d(2px, 0, 0); } 30%, 50%, 70% { transform: translate3d(-4px, 0, 0); } 40%, 60% { transform: translate3d(4px, 0, 0); } }
 
-    /* ── DATA TABLES ── */
     .table-container { width: 100%; overflow-x: auto; border-radius: var(--radius); background: var(--bg-input); border: 1px solid var(--border); }
     .data-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; text-align: left; min-width: 650px; }
     .data-table th { font-family: var(--font-mono); font-size: 0.72rem; color: var(--text-dim); padding: 1rem 1.2rem; border-bottom: 1px solid var(--border); text-transform: uppercase; background: rgba(0,0,0,0.2); }
     .data-table td { padding: 1.1rem 1.2rem; font-family: var(--font-mono); border-bottom: 1px solid var(--border); color: var(--text-primary); transition: background var(--transition); }
-    .data-table tr:last-child td { border-bottom: none; }
     .data-table tr:hover td { background: var(--bg-hover); color: #fff; }
     
     .clickable-stock-row { cursor: pointer; }
     .clickable-stock-row:hover .sym-badge { background: var(--accent); color: #000; box-shadow: 0 0 10px var(--accent-glow); }
 
-    .sym-badge { background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.2); color: var(--accent); font-size: 0.8rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: bold; transition: all var(--transition); }
+    .sym-badge { background: rgba(0,255,136,0.1); border: 1px solid rgba(0,255,136,0.2); color: var(--accent); font-size: 0.8rem; padding: 0.2rem 0.5rem; border-radius: 4px; font-weight: bold; }
     .gain { color: var(--accent); text-shadow: 0 0 10px rgba(0,255,136,0.15); }
     .loss { color: var(--red); text-shadow: 0 0 10px rgba(255,51,102,0.15); }
+
+    /* ── MARKET STATES COLORS ── */
+    .badge-open { background: rgba(0,255,136,0.12); color: var(--accent); border: 1px solid var(--accent); box-shadow: 0 0 10px rgba(0,255,136,0.2); }
+    .badge-closed { background: rgba(255,51,102,0.12); color: var(--red); border: 1px solid var(--red); box-shadow: 0 0 10px rgba(255,51,102,0.2); }
+
+    /* ── CYBERPUNK NEON SPINNER WHEEL ── */
+    .spinner-ring {
+      display: inline-block; width: 22px; height: 22px;
+      border: 3px solid rgba(0, 255, 136, 0.1); border-radius: 50%;
+      border-top-color: var(--accent); animation: spinWheel 0.8s linear infinite;
+    }
+    @keyframes spinWheel { to { transform: rotate(360deg); } }
 
     .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 2rem; }
     .trade-layout-grid { display: grid; grid-template-columns: 1.3fr 0.7fr; gap: 2rem; }
     
-    /* ── ACTIONS CONTAINER BLOCK ── */
     .trade-toggle { display: grid; grid-template-columns: 1fr 1fr; background: var(--bg-input); padding: 4px; border-radius: var(--radius); margin-bottom: 1.5rem; border: 1px solid var(--border); }
     .toggle-btn { background: transparent; border: none; color: var(--text-dim); padding: 0.75rem; font-family: var(--font-display); font-size: 1.1rem; cursor: pointer; border-radius: 2px; transition: all var(--transition); letter-spacing: 0.05em; }
     .toggle-btn.active[data-mode="buy"] { background: var(--accent); color: #000; font-weight: bold; box-shadow: 0 2px 10px var(--accent-glow); }
     .toggle-btn.active[data-mode="sell"] { background: var(--red); color: #000; font-weight: bold; box-shadow: 0 2px 10px var(--red-glow); }
 
-    /* ── EXTRA NOTICES FOR INVENTORY BALANCES ── */
     .shares-inventory-notice {
       display: flex; justify-content: space-between; align-items: center;
       background: rgba(24,39,60,0.3); border: 1px solid var(--border-bright);
       padding: 0.75rem 1rem; border-radius: var(--radius); margin-bottom: 1rem;
       font-family: var(--font-mono); font-size: 0.8rem; color: var(--text-secondary);
-      animation: flashBorder 2s infinite alternate;
     }
-    @keyframes flashBorder { from { border-color: var(--border); } to { border-color: var(--text-dim); } }
     .shares-inventory-notice span.amount-tag { color: var(--accent); font-weight: bold; font-size: 0.9rem; }
 
     .ticker-tape-wrap { position: fixed; bottom: 0; left: 0; right: 0; z-index: 500; background: var(--bg-elevated); border-top: 1px solid var(--border); height: 34px; overflow: hidden; }
@@ -217,13 +216,9 @@
     .chart-box-wrapper { width: 100%; height: 420px; background: var(--bg-input); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; display: flex; align-items: center; justify-content: center; }
 
     @media (max-width: 950px) {
-      html { font-size: 14px; }
       .app-container { flex-direction: column; }
       .sidebar { width: 100%; height: auto; position: static; border-right: none; border-bottom: 1px solid var(--border); padding: 1.5rem 1rem; }
-      .sidebar-user { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-      .nav-list { flex-direction: row; flex-wrap: wrap; gap: 0.4rem; margin-bottom: 1rem; }
-      .nav-btn { text-align: center; padding: 0.6rem; font-size: 0.8rem; background: var(--bg-input); border: 1px solid var(--border); }
-      .nav-btn.active { border-left: none; border-top: 3px solid var(--accent); }
+      .nav-list { flex-direction: row; flex-wrap: wrap; gap: 0.4rem; }
       .workspace { margin-left: 0; width: 100%; padding: 1.5rem 1rem 5rem 1rem; }
       .trade-layout-grid, .two-col { grid-template-columns: 1fr; }
     }
@@ -238,7 +233,7 @@
     <div class="auth-box">
       <div class="brand-header">
         <h1 class="brand-title"><span>$</span>STOCKSIM</h1>
-        <p class="brand-subtitle">Neural Net Liquidity Desk v2.0</p>
+        <p class="brand-subtitle">Neural Net Liquidity Desk v2.5</p>
       </div>
       <div class="auth-tabs">
         <button class="auth-tab active" id="tab-login-toggle">LOG IN</button>
@@ -303,24 +298,24 @@
         </div>
         <div class="kpi-strip">
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Net Worth <span class="help-tooltip" title="Liquid Cash + Stock Assets Valuation">?</span></div>
+            <div class="kpi-lbl-flex">Net Worth</div>
             <div class="kpi-val" id="p-kpi-total">$--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Available Cash <span class="help-tooltip" title="Spendable capital balances">?</span></div>
+            <div class="kpi-lbl-flex">Available Cash</div>
             <div class="kpi-val" id="p-kpi-cash">$--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Asset Valuation <span class="help-tooltip" title="Total raw sum value of stocks held">?</span></div>
+            <div class="kpi-lbl-flex">Asset Valuation</div>
             <div class="kpi-val" id="p-kpi-invested">$--</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">Account yield <span class="help-tooltip" title="Percentage return from $10,000 baseline">?</span></div>
+            <div class="kpi-lbl-flex">Account yield</div>
             <div class="kpi-val" id="p-kpi-return">--</div>
           </div>
         </div>
         <div class="card">
-          <h2 class="card-title">Securities Holdings <span style="font-size:0.75rem; color:var(--text-dim); text-transform:none; font-family:var(--font-body); margin-left:10px;">(Click asset row to auto-load order terminal)</span></h2>
+          <h2 class="card-title">Securities Holdings</h2>
           <div class="table-container">
             <table class="data-table">
               <thead>
@@ -341,24 +336,31 @@
 
       <section id="view-trade" class="view-panel hidden">
         <div class="view-header">
-          <div><h1 class="view-title">Order Routing Desk</h1><p class="view-sub">Enter raw query parameters. AI links context endpoints automatically.</p></div>
-          <div style="font-family: var(--font-mono); background: var(--bg-card); border: 1px solid var(--border); padding: 0.6rem 1.2rem; border-radius: var(--radius); text-shadow: 0 0 5px rgba(255,255,255,0.2);" id="trade-cash-badge">Cash Pool: $--</div>
+          <div><h1 class="view-title">Order Routing Desk</h1><p class="view-sub">Enter raw asset parameter handles below.</p></div>
+          <div style="font-family: var(--font-mono); background: var(--bg-card); border: 1px solid var(--border); padding: 0.6rem 1.2rem; border-radius: var(--radius);" id="trade-cash-badge">Cash Pool: $--</div>
         </div>
+        
         <div class="card">
           <div class="form-group" style="margin-bottom:0;">
-            <label class="form-label">Neural Engine Query Input (Press Enter or click Search)</label>
-            <div style="display: flex; gap: 0.5rem;">
-              <input type="text" class="form-input" id="trade-search-input" placeholder="e.g. 'what is the current price of nvidia stock' or 'reliance.ns'" autocomplete="off" />
-              <button class="btn-primary" id="btn-fetch-ticker" style="width: auto; padding: 0 2rem;">QUERY</button>
+            <label class="form-label">Neural Engine Query Input</label>
+            <div style="display: flex; gap: 0.5rem; align-items: center;">
+              <input type="text" class="form-input" id="trade-search-input" placeholder="e.g. 'Apple' or 'reliance.ns' or 'Nvidia'" autocomplete="off" />
+              <button class="btn-primary" id="btn-fetch-ticker" style="width: auto; padding: 0 2rem; display: flex; align-items: center; gap: 10px;">
+                <span id="query-button-text">QUERY</span>
+                <span id="query-loading-spinner" class="spinner-ring hidden"></span>
+              </button>
             </div>
             <div id="trade-search-error" class="form-error hidden" style="margin-top: 1rem; margin-bottom: 0;"></div>
           </div>
         </div>
 
         <div id="trade-ticker-panel" class="hidden">
-          <div class="card two-col" style="background: linear-gradient(135deg, var(--bg-card), var(--bg-elevated)); border-left: 4px solid var(--accent); box-shadow: 0 10px 30px rgba(0,255,136,0.05);">
+          <div class="card two-col" style="background: linear-gradient(135deg, var(--bg-card), var(--bg-elevated)); border-left: 4px solid var(--accent);">
             <div>
-              <span class="sym-badge" style="font-size: 1.3rem; padding: 0.3rem 0.8rem;" id="t-display-symbol">--</span>
+              <div style="display: flex; gap: 12px; align-items: center;">
+                <span class="sym-badge" style="font-size: 1.3rem; padding: 0.3rem 0.8rem;" id="t-display-symbol">--</span>
+                <span id="market-status-badge" style="font-family: var(--font-mono); font-size: 0.72rem; padding: 0.2rem 0.6rem; border-radius: 3px; font-weight: bold;">MARKET CLOSED</span>
+              </div>
               <h2 style="font-family: var(--font-display); font-size: 2rem; margin-top: 0.75rem;" id="t-display-name">--</h2>
             </div>
             <div style="text-align: right;">
@@ -387,7 +389,7 @@
                 </div>
 
                 <div class="form-group">
-                  <label class="form-label" id="qty-box-label">Volume (Shares)</label>
+                  <label class="form-label">Volume (Shares)</label>
                   <input type="number" class="form-input" id="trade-qty-input" step="any" min="0.0001" placeholder="Specify transaction quantity" />
                 </div>
 
@@ -469,7 +471,7 @@
       activeUser: null,
       tradeMode: "buy",
       tradeAsset: null,
-      cachedUserHoldings: {}, // Local tracker cache for shares owned balances
+      cachedUserHoldings: {},
 
       init() {
         this.renderTickerTape();
@@ -477,17 +479,12 @@
         this.bindGlobalEnterKeyListeners();
       },
 
-      /* ── FEATURE FIX: WIRE ENTER-KEY ON INPUT ELEMENT FOCUS ── */
       bindGlobalEnterKeyListeners() {
-        // Auth screen hooks
         document.getElementById("in-login-user").addEventListener("keydown", (e) => { if(e.key === "Enter") this.processLogin(); });
         document.getElementById("in-login-pass").addEventListener("keydown", (e) => { if(e.key === "Enter") this.processLogin(); });
-        
         document.getElementById("in-reg-user").addEventListener("keydown", (e) => { if(e.key === "Enter") this.processRegister(); });
         document.getElementById("in-reg-display").addEventListener("keydown", (e) => { if(e.key === "Enter") this.processRegister(); });
         document.getElementById("in-reg-pass").addEventListener("keydown", (e) => { if(e.key === "Enter") this.processRegister(); });
-        
-        // Trading engine query field input hooks
         document.getElementById("trade-search-input").addEventListener("keydown", (e) => { if(e.key === "Enter") this.executeTickerQuery(); });
         document.getElementById("trade-qty-input").addEventListener("keydown", (e) => { if(e.key === "Enter") this.dispatchOrderBlock(); });
       },
@@ -575,8 +572,6 @@
         const totals = await res.json();
 
         this.activeUser.cash = totals.cash;
-        
-        // Reset and load holding inventory caches
         this.cachedUserHoldings = {};
 
         document.getElementById("p-kpi-total").textContent = "$" + totals.netValue.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits:2});
@@ -590,10 +585,9 @@
         const body = document.getElementById("portfolio-positions-table");
         body.innerHTML = "";
         if(totals.positions.length === 0) {
-          body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:2rem 0;">No active investments found. Search elements inside Trade Station to initiate.</td></tr>`;
+          body.innerHTML = `<tr><td colspan="6" style="text-align:center; color:var(--text-dim); padding:2rem 0;">No active investments found.</td></tr>`;
         } else {
           totals.positions.forEach(i => {
-            // Save inside tracking map using raw database keys (e.g., TSLA, INFY.NS)
             this.cachedUserHoldings[i.rawToken] = i.shares;
 
             const tr = document.createElement("tr");
@@ -652,40 +646,63 @@
 
       async executeTickerQuery() {
         const errEl = document.getElementById("trade-search-error");
-        errEl.classList.add("hidden");
+        const spinner = document.getElementById("query-loading-spinner");
+        const btnText = document.getElementById("query-button-text");
         
+        errEl.classList.add("hidden");
         const queryText = document.getElementById("trade-search-input").value;
         if (!queryText) return;
 
-        const res = await fetch(`/api/market/query?query=${encodeURIComponent(queryText)}`);
-        const data = await res.json();
-        
-        if (!res.ok) {
-          errEl.textContent = data.error; errEl.classList.remove("hidden"); return;
+        // Visual loading state trigger active
+        spinner.classList.remove("hidden");
+        btnText.textContent = "ROUTING...";
+
+        try {
+          const res = await fetch(`/api/market/query?query=${encodeURIComponent(queryText)}`);
+          const data = await res.json();
+          
+          if (!res.ok) {
+            errEl.textContent = data.error; errEl.classList.remove("hidden"); return;
+          }
+
+          this.tradeAsset = data;
+          document.getElementById("trade-ticker-panel").classList.remove("hidden");
+          
+          document.getElementById("t-display-symbol").textContent = data.cleanName; 
+          document.getElementById("t-display-name").textContent = data.assetClassDescription;
+          document.getElementById("t-display-price").textContent = "$" + data.price.toLocaleString(undefined, {minimumFractionDigits:2});
+          
+          // Render market badge metrics state updates
+          const stateBadge = document.getElementById("market-status-badge");
+          stateBadge.textContent = "MARKET " + data.marketState;
+          if (data.marketState === "OPEN") {
+            stateBadge.className = "badge-open";
+          } else {
+            stateBadge.className = "badge-closed";
+          }
+
+          const chg = document.getElementById("t-display-change");
+          chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
+          chg.className = data.change >= 0 ? "gain" : "loss";
+
+          document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
+          document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
+          document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
+          document.getElementById("t-stat-rawtoken").textContent = data.symbol;
+
+          this.updateInventoryViewBox();
+          this.injectTradingViewGraph(data.symbol);
+          this.runTradeCalculationPreview();
+        } catch (e) {
+          errEl.textContent = "Network error communicating with interface node.";
+          errEl.classList.remove("hidden");
+        } finally {
+          // Teardown neon animation state spinner wheel
+          spinner.classList.add("hidden");
+          btnText.textContent = "QUERY";
         }
-
-        this.tradeAsset = data;
-        document.getElementById("trade-ticker-panel").classList.remove("hidden");
-        
-        document.getElementById("t-display-symbol").textContent = data.cleanName; 
-        document.getElementById("t-display-name").textContent = data.assetClassDescription;
-        document.getElementById("t-display-price").textContent = "$" + data.price.toLocaleString(undefined, {minimumFractionDigits:2});
-        
-        const chg = document.getElementById("t-display-change");
-        chg.textContent = (data.change >= 0 ? "+" : "") + data.change.toFixed(2) + " (" + data.pct.toFixed(2) + "%)";
-        chg.className = data.change >= 0 ? "gain" : "loss";
-
-        document.getElementById("t-stat-price").textContent = "$" + data.price.toFixed(2);
-        document.getElementById("t-stat-high").textContent = "$" + data.high.toFixed(2);
-        document.getElementById("t-stat-low").textContent = "$" + data.low.toFixed(2);
-        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
-
-        this.updateInventoryViewBox();
-        this.injectTradingViewGraph(data.symbol);
-        this.runTradeCalculationPreview();
       },
 
-      /* ── FEATURE FIX: REFRESH INVENTORY COMPONENT CONDITIONAL VISIBILITY ── */
       updateInventoryViewBox() {
         const box = document.getElementById("shares-owned-inventory-box");
         const label = document.getElementById("shares-owned-inventory-amount");
@@ -695,9 +712,7 @@
           return;
         }
 
-        // Search the local tracking metrics using the raw token tag (e.g. NVDA or RELIANCE.NS)
         const owned = this.cachedUserHoldings[this.tradeAsset.symbol] || 0;
-        
         if (owned > 0) {
           label.textContent = owned.toFixed(4) + " Shares";
           box.classList.remove("hidden");
@@ -708,8 +723,15 @@
 
       injectTradingViewGraph(tickerSymbol) {
         let tvString = tickerSymbol;
-        if(tickerSymbol === "^IXIC") tvString = "NASDAQ:IXIC";
-        if(tickerSymbol === "^NSEI") tvString = "NSE:NIFTY";
+        
+        // Dynamic string sanitizer mapping for direct TradingView exchange ingestion
+        if (tickerSymbol.endsWith(".NS")) {
+          tvString = "NSE:" + tickerSymbol.replace(".NS", "");
+        } else if (tickerSymbol === "^IXIC") {
+          tvString = "NASDAQ:IXIC";
+        } else if (tickerSymbol === "^NSEI") {
+          tvString = "NSE:NIFTY";
+        }
 
         new TradingView.widget({
           "width": "100%", "height": "100%", "symbol": tvString, "interval": "D", "timezone": "Etc/UTC",
@@ -782,7 +804,6 @@
         if (!container) return;
         const tracks = ["AAPL", "MSFT", "TSLA", "NFLX", "NVDA", "AMZN", "RELIANCE.NS", "TATAMOTORS.NS"];
         container.innerHTML = "";
-        // Triple append list contents to secure continuous scrolling alignment borders
         const items = [...tracks, ...tracks, ...tracks];
         items.forEach(t => {
           const div = document.createElement("div"); div.className = "tt-item";
@@ -797,7 +818,6 @@
       
       document.getElementById("tab-login-toggle").addEventListener("click", () => App.switchAuthTab("login"));
       document.getElementById("tab-reg-toggle").addEventListener("click", () => App.switchAuthTab("register"));
-      
       document.getElementById("btn-submit-login").addEventListener("click", () => App.processLogin());
       document.getElementById("btn-submit-register").addEventListener("click", () => App.processRegister());
       
