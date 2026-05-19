@@ -5,7 +5,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from pymongo import MongoClient
 import yfinance as ticker_engine
-from groq import Groq  # <-- AI Engine Restored!
+from groq import Groq
 
 app = Flask(__name__, static_folder=".")
 CORS(app)
@@ -14,7 +14,7 @@ CORS(app)
 # 1. LIVE CONNECTIONS & SECURE ENVIROMENTS
 # ==========================================
 MONGO_URI = os.environ.get("MONGO_URI")
-GROQ_API_KEY = os.environ.get("GROQ_API_KEY") # <-- Make sure to add this in Render Environment Variables!
+GROQ_API_KEY = os.environ.get("GROQ_API_KEY") 
 
 if not MONGO_URI:
     print("❌ SYSTEM ALERT: MONGO_URI environment variable is missing on Render!")
@@ -39,13 +39,11 @@ ai_client = Groq(api_key=GROQ_API_KEY) if GROQ_API_KEY else None
 def extract_ticker_with_ai(user_query):
     """Uses Groq AI to convert plain English requests into a clean stock ticker symbol."""
     if not ai_client:
-        # Fallback dictionary mapping if AI key isn't configured yet
         clean = user_query.strip().upper()
         fallback_map = {"APPLE": "AAPL", "NVIDIA": "NVDA", "TESLA": "TSLA", "BITCOIN": "BTC-USD", "MICROSOFT": "MSFT"}
         return fallback_map.get(clean, clean)
 
     try:
-        # We instruct the AI to return ONLY the ticker and absolutely nothing else.
         chat_completion = ai_client.chat.completions.create(
             messages=[
                 {
@@ -61,12 +59,11 @@ def extract_ticker_with_ai(user_query):
                     "content": f"Extract the stock ticker from this search query: '{user_query}'"
                 }
             ],
-            model="llama3-8b-8192", # Ultra-fast, responsive model
-            temperature=0.0, # 0 temperature ensures it doesn't get creative
+            model="llama3-8b-8192", 
+            temperature=0.0, 
             max_tokens=10
         )
         symbol = chat_completion.choices[0].message.content.strip().upper()
-        # Strip out any rogue quotes or periods the AI might append
         symbol = symbol.replace('"', '').replace("'", "").replace(".", "")
         return symbol
     except Exception as e:
@@ -77,9 +74,10 @@ def extract_ticker_with_ai(user_query):
 # 3. APPLICATION API ROUTE MANAGEMENT
 # ==========================================
 
+# 🛠️ FIXED: Now correctly hunting down your index.html file!
 @app.route("/")
 def serve_dashboard():
-    return send_from_directory(".", "Untitled-1.html")
+    return send_from_directory(".", "index.html")
 
 # --- AUTHENTICATION: REGISTER ---
 @app.route("/api/auth/register", methods=["POST"])
@@ -130,14 +128,20 @@ def auth_login():
         "cash": user.get("cash", 10000.00)
     }), 200
 
-# --- NATURAL LANGUAGE / ASSET LOOKUP ENGINE (NOW WITH AI) ---
+# 🛠️ ADDED: Missing logout pipeline path now added
+@app.route("/api/auth/logout", methods=["POST"])
+def auth_logout():
+    global CURRENT_ACTIVE_USER
+    CURRENT_ACTIVE_USER = ""
+    return jsonify({"message": "Logged out successfully!"}), 200
+
+# --- NATURAL LANGUAGE / ASSET LOOKUP ENGINE ---
 @app.route("/api/market/query", methods=["GET"])
 def query_market():
     raw_query = request.args.get("query", "").strip()
     if not raw_query:
         return jsonify({"error": "Please provide an asset identifier."}), 400
 
-    # 🤖 Unleash the AI to figure out what stock the user wants!
     symbol = extract_ticker_with_ai(raw_query)
     print(f"🔮 AI transformed user query '{raw_query}' into ticker target: '{symbol}'")
 
@@ -262,7 +266,7 @@ def execute_trade():
 
     if mode == "buy":
         if current_cash < total_cost:
-            return jsonify({"error": "Insufficient portfolio liquid funds available."}), 400
+            return jsonify({"error": "Insufficient portfolio funds available."}), 400
         
         current_cash -= total_cost
         if symbol not in portfolio:
@@ -272,7 +276,7 @@ def execute_trade():
         portfolio[symbol]["total_cost"] += total_cost
     elif mode == "sell":
         if symbol not in portfolio or portfolio[symbol]["shares"] < qty:
-            return jsonify({"error": "Insufficient asset inventory shares."}), 400
+            return jsonify({"error": "Insufficient shares available to sell."}), 400
         
         current_owned_shares = portfolio[symbol]["shares"]
         current_total_cost = portfolio[symbol]["total_cost"]
