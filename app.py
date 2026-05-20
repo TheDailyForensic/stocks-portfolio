@@ -6,14 +6,9 @@ from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
 from pymongo import MongoClient
-from bson import ObjectId
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
-
-# ── Global Desk Config Settings ───────────────────────────────────────────────
-# When True, all dollar-denominated metrics automatically convert to INR in real-time
-CONVERT_ALL_TO_INR = True
 
 # ── API keys ──────────────────────────────────────────────────────────────────
 GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
@@ -29,14 +24,11 @@ groq_client = OpenAI(
 mongo_client = MongoClient(MONGO_URI)
 db           = mongo_client["stocksim"]
 users_col    = db["users"]
-
-# Ensure username is unique
 users_col.create_index("username", unique=True)
 
-STARTING_CASH = 10_000.00
+STARTING_CASH = 1000000.00  # Elevated pool to accommodate multi-currency trading
 
-
-# ── Helpers & Conversion Engines ──────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -44,31 +36,21 @@ def get_clean_name_mapping(ticker: str) -> str:
     if ticker == "^IXIC":  return "NASDAQ"
     if ticker == "^NSEI":  return "NIFTY 50"
     if ticker.endswith(".NS"): return ticker.replace(".NS", "")
+    if ticker.endswith(".BO"): return ticker.replace(".BO", "")
     return ticker
-
-def get_live_usd_inr_rate() -> float:
-    """Fetches high-availability realtime USD/INR exchange rate with solid default backup."""
-    try:
-        url = "https://query1.finance.yahoo.com/v8/finance/chart/INR=X?range=1d&interval=1m"
-        headers = {'User-Agent': 'Mozilla/5.0'}
-        r = requests.get(url, headers=headers, timeout=4).json()
-        rate = r["chart"]["result"][0]["meta"]["regularMarketPrice"]
-        return float(rate)
-    except Exception:
-        return 83.50  # Reliable market benchmark fallback
 
 def interpret_asset_query(user_input: str) -> dict:
     system_instruction = """
-    You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
+    You are a global financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
 
     Rules:
-    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA).
-    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS).
-    3. For Nasdaq Index: ticker '^IXIC', provider 'yahoo', cleanName 'NASDAQ Composite'.
-    4. For Nifty 50:     ticker '^NSEI', provider 'yahoo', cleanName 'NIFTY 50'.
+    1. For US stocks/ETFs (e.g. TSLA, AAPL, NVDA), provider is 'finnhub', currency is 'USD', ticker is standard uppercase.
+    2. For Indian stocks on NSE, provider is 'yahoo', currency is 'INR', ticker appends '.NS' (e.g. RELIANCE.NS, TCS.NS).
+    3. For Nasdaq Index: ticker '^IXIC', provider 'yahoo', currency 'USD'.
+    4. For Nifty 50:     ticker '^NSEI', provider 'yahoo', currency 'INR'.
 
-    Respond ONLY with valid JSON:
-    {"ticker":"STRING","provider":"finnhub or yahoo","cleanName":"STRING","description":"STRING","error":false}
+    Respond ONLY with valid JSON matching this exact schema:
+    {"ticker":"STRING","provider":"finnhub or yahoo","currency":"USD or INR","cleanName":"STRING","description":"STRING","error":false}
     """
     try:
         resp = groq_client.chat.completions.create(
@@ -81,8 +63,10 @@ def interpret_asset_query(user_input: str) -> dict:
         )
         return json.loads(resp.choices[0].message.content)
     except Exception:
-        return {"ticker": "", "provider": "", "cleanName": "Unknown",
-                "description": "Asset", "error": True}
+        cleaned = user_input.strip().upper()
+        if any(cleaned.endswith(x) for x in [".NS", ".BO"]) or cleaned.startswith("^NSE"):
+            return {"ticker": cleaned, "provider": "yahoo", "currency": "INR", "cleanName": cleaned, "description": "Indian Asset", "error": False}
+        return {"ticker": cleaned, "provider": "finnhub", "currency": "USD", "cleanName": cleaned, "description": "US Asset", "error": False}
 
 def fetch_live_quote(ticker: str, provider: str):
     if provider == "finnhub":
@@ -95,9 +79,9 @@ def fetch_live_quote(ticker: str, provider: str):
                 "price":  float(r["c"]),
                 "change": round(r.get("d",  0), 4),
                 "pct":    round(r.get("dp", 0), 4),
-                "low":    r.get("l", r["c"]),
-                "high":   r.get("h", r["c"]),
-                "prev":   r.get("pc", r["c"]),
+                "low":    float(r.get("l", r["c"])),
+                "high":   float(r.get("h", r["c"])),
+                "prev":   float(r.get("pc", r["c"])),
                 "currency": "USD"
             }
         except Exception:
@@ -106,18 +90,12 @@ def fetch_live_quote(ticker: str, provider: str):
         try:
             t = yf.Ticker(ticker)
             hist = t.history(period="1d")
-            if hist.empty:
-                hist = t.history(period="2d")
-                
-            if hist.empty:
-                return None
-                
+            if hist.empty: return None
             price = float(hist['Close'].iloc[-1])
             low = float(hist['Low'].iloc[-1]) if 'Low' in hist else price
             high = float(hist['High'].iloc[-1]) if 'High' in hist else price
             prev = float(hist['Open'].iloc[-1]) if 'Open' in hist else price
-            
-            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD"
+            currency = "INR" if (".NS" in ticker or "NSEI" in ticker or ".BO" in ticker or "BSESN" in ticker) else "USD"
             return {
                 "symbol": ticker, 
                 "price": price,
@@ -140,7 +118,6 @@ def safe_user_view(user: dict) -> dict:
     u.pop("_id", None)
     return u
 
-
 # ── Auth routes ───────────────────────────────────────────────────────────────
 @app.route("/")
 def index():
@@ -148,26 +125,22 @@ def index():
 
 @app.route("/api/auth/register", methods=["POST"])
 def register():
-    data        = request.json or {}
-    username    = data.get("username", "").lower().strip()
-    display     = data.get("displayName", "").strip()
-    password    = data.get("password", "").strip()
+    data = request.json or {}
+    username = data.get("username", "").lower().strip()
+    display = data.get("displayName", "").strip()
+    password = data.get("password", "").strip()
 
     if not username or not display or not password:
         return jsonify({"error": "Please fill in all fields."}), 400
-    if len(password) < 4:
-        return jsonify({"error": "Password must be at least 4 characters."}), 400
-    if len(username) < 2:
-        return jsonify({"error": "Username must be at least 2 characters."}), 400
 
     new_user = {
-        "username":    username,
+        "username": username,
         "displayName": display,
-        "password":    password,
-        "cash":        STARTING_CASH,
-        "holdings":    {},
-        "history":     [],
-        "created_at":  now_str()
+        "password": password,
+        "cash": STARTING_CASH,
+        "holdings": {},
+        "history": [],
+        "created_at": now_str()
     }
     try:
         users_col.insert_one(new_user)
@@ -179,14 +152,12 @@ def register():
 
 @app.route("/api/auth/login", methods=["POST"])
 def login():
-    data     = request.json or {}
+    data = request.json or {}
     username = data.get("username", "").lower().strip()
     password = data.get("password", "").strip()
-
     user = get_user(username)
     if not user or user["password"] != password:
         return jsonify({"error": "Incorrect username or password."}), 401
-
     session["user"] = username
     return jsonify(safe_user_view(user))
 
@@ -195,272 +166,123 @@ def logout():
     session.pop("user", None)
     return jsonify({"success": True})
 
-
 # ── Market data ───────────────────────────────────────────────────────────────
 @app.route("/api/market/query")
 def query_market():
     q = request.args.get("query", "").strip()
-    if not q:
-        return jsonify({"error": "No query provided."}), 400
+    if not q: return jsonify({"error": "No query provided."}), 400
 
-    asset_meta = interpret_asset_query(q)
-    if asset_meta.get("error") or not asset_meta.get("ticker"):
-        return jsonify({"error": "Could not identify that stock or index."}), 404
+    ai = interpret_asset_query(q)
+    if ai.get("error") or not ai.get("ticker"):
+        return jsonify({"error": "Could not identify asset query."}), 404
 
-    quote = fetch_live_quote(asset_meta["ticker"], asset_meta["provider"])
+    quote = fetch_live_quote(ai["ticker"], ai["provider"])
     if not quote:
-        return jsonify({"error": "Failed to fetch live price. Try again."}), 404
+        return jsonify({"error": "Failed to fetch live tracking metrics."}), 404
 
-    quote["cleanName"] = asset_meta.get("cleanName", asset_meta["ticker"])
-    quote["assetClassDescription"] = asset_meta.get("description", "Market Asset")
-    
-    if CONVERT_ALL_TO_INR:
-        rate = get_live_usd_inr_rate()
-        if quote["currency"] == "USD":
-            quote["price"] *= rate
-            quote["change"] *= rate
-            quote["low"] *= rate
-            quote["high"] *= rate
-            quote["prev"] *= rate
-        quote["currency"] = "INR"
-
+    quote["cleanName"] = ai.get("cleanName", ai["ticker"])
+    quote["assetClassDescription"] = ai.get("description", "Market Security")
+    quote["provider"] = ai["provider"]
     return jsonify(quote)
-
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────
 @app.route("/api/user/portfolio")
 def get_portfolio():
-    if "user" not in session:
-        return jsonify({"error": "Not logged in."}), 401
-
+    if "user" not in session: return jsonify({"error": "Not logged in."}), 401
     user = get_user(session["user"])
-    if not user:
-        return jsonify({"error": "Account not found."}), 401
+    if not user: return jsonify({"error": "Account not found."}), 401
 
-    rate = get_live_usd_inr_rate() if CONVERT_ALL_TO_INR else 1.0
-    currency_label = "INR" if CONVERT_ALL_TO_INR else "USD"
-
-    user_cash = user["cash"] * rate if CONVERT_ALL_TO_INR else user["cash"]
-    
-    invested_total = 0.0
+    invested = 0.0
     positions_list = []
 
     for sym, holding in user.get("holdings", {}).items():
-        asset_meta = interpret_asset_query(sym)
-        quote = fetch_live_quote(sym, asset_meta.get("provider", "finnhub"))
+        # Identify whether ticker uses finnhub or yahoo based on format patterns
+        prov = "yahoo" if any(x in sym for x in [".NS", ".BO", "^"]) else "finnhub"
+        quote = fetch_live_quote(sym, prov)
 
         current_price = quote["price"] if quote else holding["cost"]
-        current_currency = quote["currency"] if quote else "USD"
+        mkt_val       = holding["shares"] * current_price
+        cost_basis    = holding["shares"] * holding["cost"]
+        gl            = mkt_val - cost_basis
+        gl_pct        = ((current_price - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
 
-        if CONVERT_ALL_TO_INR:
-            if current_currency == "USD":
-                current_price *= rate
-            avg_cost_disp = holding["cost"] * rate
-        else:
-            if current_currency == "INR":
-                current_price /= get_live_usd_inr_rate()
-            avg_cost_disp = holding["cost"]
-
-        mkt_val    = holding["shares"] * current_price
-        cost_basis = holding["shares"] * avg_cost_disp
-        gl         = mkt_val - cost_basis
-        gl_pct     = ((current_price - avg_cost_disp) / avg_cost_disp) * 100 if avg_cost_disp else 0
-
-        invested_total += mkt_val
+        invested += mkt_val
         positions_list.append({
-            "symbol":       asset_meta.get("cleanName", sym),
+            "symbol":       get_clean_name_mapping(sym),
             "rawToken":     sym,
             "shares":       holding["shares"],
-            "avgCost":      avg_cost_disp,
+            "avgCost":      holding["cost"],
             "currentPrice": current_price,
             "marketValue":  mkt_val,
             "gainLoss":     gl,
             "gainLossPct":  gl_pct,
-            "currency":     currency_label
+            "currency":     quote["currency"] if quote else "USD"
         })
 
-    net_val = user_cash + invested_total
-    starting_benchmark = STARTING_CASH * rate if CONVERT_ALL_TO_INR else STARTING_CASH
-    yield_pct = ((net_val - starting_benchmark) / starting_benchmark) * 100
-
-    # Format history records safely to prevent crash exceptions 
-    formatted_history = []
-    for log in user.get("history", []):
-        item = dict(log)
-        
-        # FIX: Added .get() fallbacks to prevent KeyError loops on old DB objects
-        raw_price = item.get("price", 0.0)
-        raw_sum   = item.get("sum", 0.0)
-        raw_pl    = item.get("pl", 0.0)
-        
-        if CONVERT_ALL_TO_INR and item.get("currency") == "USD":
-            item["price"] = raw_price * rate
-            item["sum"]   = raw_sum * rate
-            item["pl"]    = raw_pl * rate
-            item["currency"] = "INR"
-        elif not CONVERT_ALL_TO_INR and item.get("currency") == "INR":
-            item["price"] = raw_price / rate
-            item["sum"]   = raw_sum / rate
-            item["pl"]    = raw_pl / rate
-            item["currency"] = "USD"
-        else:
-            item["price"] = raw_price
-            item["sum"]   = raw_sum
-            item["pl"]    = raw_pl
-
-        formatted_history.append(item)
+    net_val = user["cash"] + invested
+    yield_pct = ((net_val - STARTING_CASH) / STARTING_CASH) * 100
 
     return jsonify({
-        "cash":      user_cash,
-        "invested":  invested_total,
+        "cash":      user["cash"],
+        "invested":  invested,
         "netValue":  net_val,
         "returns":   yield_pct,
         "positions": positions_list,
-        "history":   formatted_history
+        "history":   user.get("history", [])
     })
-
 
 # ── Trading ───────────────────────────────────────────────────────────────────
 @app.route("/api/trade/execute", methods=["POST"])
 def execute_trade():
-    if "user" not in session:
-        return jsonify({"error": "Not logged in."}), 401
-
-    data   = request.json or {}
+    if "user" not in session: return jsonify({"error": "Not logged in."}), 401
+    data = request.json or {}
     symbol = data.get("symbol", "").upper().strip()
-    qty    = float(data.get("qty", 0))
-    mode   = data.get("mode", "buy")
-    price  = float(data.get("price", 0))
+    qty = float(data.get("qty", 0))
+    mode = data.get("mode", "buy")
+    price = float(data.get("price", 0))
 
-    if qty <= 0 or price <= 0:
-        return jsonify({"error": "Invalid quantity or price."}), 400
-
+    if qty <= 0 or price <= 0: return jsonify({"error": "Invalid metrics parameters."}), 400
     user = get_user(session["user"])
-    if not user:
-        return jsonify({"error": "Account not found."}), 401
+    if not user: return jsonify({"error": "Account structurally detached."}), 401
 
     holdings = user.get("holdings", {})
-    cash     = user["cash"]
-    
-    rate = get_live_usd_inr_rate()
-    
-    if CONVERT_ALL_TO_INR:
-        price_usd = price / rate
-    else:
-        asset_meta = interpret_asset_query(symbol)
-        quote = fetch_live_quote(symbol, asset_meta.get("provider", "finnhub"))
-        native_curr = quote["currency"] if quote else "USD"
-        price_usd = price / rate if native_curr == "INR" else price
-
-    total_cost_usd = round(qty * price_usd, 6)
+    cash = user["cash"]
+    total_cost = round(qty * price, 6)
     clean_sym = get_clean_name_mapping(symbol)
-    timestamp = now_str()
-    pl_usd    = 0.0
-
+    
     if mode == "buy":
-        if cash < total_cost_usd:
-            return jsonify({"error": "Insufficient funds for this order."}), 400
-
-        cash -= total_cost_usd
-        if symbol not in holdings:
-            holdings[symbol] = {"shares": 0.0, "cost": 0.0}
-
+        if cash < total_cost: return jsonify({"error": "Insufficient account funds."}), 400
+        cash -= total_cost
+        if symbol not in holdings: holdings[symbol] = {"shares": 0.0, "cost": 0.0}
         prev_shares = holdings[symbol]["shares"]
-        prev_cost   = holdings[symbol]["cost"]
-        new_shares  = prev_shares + qty
+        prev_cost = holdings[symbol]["cost"]
+        new_shares = prev_shares + qty
         holdings[symbol]["shares"] = new_shares
-        holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + total_cost_usd) / new_shares
-
-    else:  # sell
+        holdings[symbol]["cost"] = ((prev_shares * prev_cost) + total_cost) / new_shares
+    else:
         owned = holdings.get(symbol, {}).get("shares", 0)
-        if owned < qty - 1e-9:
-            return jsonify({"error": f"You only own {owned:.4f} shares of {clean_sym}."}), 400
-
-        avg_cost_usd = holdings[symbol]["cost"]
-        pl_usd       = round((price_usd - avg_cost_usd) * qty, 6)
-        cash        += total_cost_usd
+        if owned < qty - 1e-9: return jsonify({"error": f"Insufficient shares available."}), 400
+        cash += total_cost
         holdings[symbol]["shares"] -= qty
+        if holdings[symbol]["shares"] <= 1e-9: del holdings[symbol]
 
-        if holdings[symbol]["shares"] <= 1e-9:
-            del holdings[symbol]
-
-    currency_label = "INR" if CONVERT_ALL_TO_INR else ("INR" if (".NS" in symbol or "NSEI" in symbol) else "USD")
-    display_price = price
-    display_sum   = qty * price
-    display_pl    = pl_usd * rate if CONVERT_ALL_TO_INR else pl_usd
-
+    currency = "INR" if any(x in symbol for x in [".NS", ".BO", "^NSE", "^BSE"]) else "USD"
     history_entry = {
-        "date":        timestamp,
-        "type":        "BUY" if mode == "buy" else "SELL",
-        "symbol":      symbol,
+        "date": now_str(),
+        "type": "BUY" if mode == "buy" else "SELL",
+        "symbol": symbol,
         "cleanSymbol": clean_sym,
-        "shares":      qty,
-        "price":       display_price,
-        "sum":         display_sum,
-        "pl":          display_pl,
-        "currency":    currency_label
+        "shares": qty,
+        "price": price,
+        "sum": total_cost,
+        "currency": currency
     }
 
     users_col.update_one(
         {"username": session["user"]},
-        {
-            "$set":   {"cash": round(cash, 6), "holdings": holdings},
-            "$push":  {"history": {"$each": [history_entry], "$position": 0}}
-        }
+        {"$set": {"cash": round(cash, 6), "holdings": holdings}, "$push": {"history": {"$each": [history_entry], "$position": 0}}}
     )
-
-    return jsonify({
-        "success": True, 
-        "pl": display_pl, 
-        "newCash": round(cash * rate if CONVERT_ALL_TO_INR else cash, 2),
-        "currency": currency_label,
-        "qty": qty,
-        "mode": mode.upper(),
-        "cleanSymbol": clean_sym
-    })
-
-
-# ── Leaderboard ───────────────────────────────────────────────────────────────
-@app.route("/api/leaderboard")
-def leaderboard():
-    board = []
-    rate = get_live_usd_inr_rate() if CONVERT_ALL_TO_INR else 1.0
-    currency_label = "INR" if CONVERT_ALL_TO_INR else "USD"
-    
-    for user in users_col.find({}, {"password": 0, "_id": 0}):
-        live_invested_usd = 0.0
-        for sym, holding in user.get("holdings", {}).items():
-            asset_meta = interpret_asset_query(sym)
-            quote = fetch_live_quote(sym, asset_meta.get("provider", "finnhub"))
-            
-            current_price = quote["price"] if quote else holding["cost"]
-            current_currency = quote["currency"] if quote else "USD"
-            
-            if current_currency == "INR":
-                current_price /= get_live_usd_inr_rate()
-                
-            live_invested_usd += holding["shares"] * current_price
-
-        net_value_usd = user["cash"] + live_invested_usd
-        returns_pct   = ((net_value_usd - STARTING_CASH) / STARTING_CASH) * 100
-        trade_count   = len(user.get("history", []))
-        
-        display_net  = net_value_usd * rate
-        display_cash = user["cash"] * rate
-
-        board.append({
-            "name":       user["displayName"],
-            "handle":     user["username"],
-            "cash":       display_cash,
-            "netValue":   display_net,
-            "returns":    returns_pct,
-            "tradeCount": trade_count,
-            "currency":   currency_label
-        })
-
-    board.sort(key=lambda x: x["returns"], reverse=True)
-    return jsonify(board)
-
+    return jsonify({"success": True, "newCash": round(cash, 2)})
 
 if __name__ == "__main__":
     app.run(debug=True)
