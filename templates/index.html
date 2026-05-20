@@ -731,13 +731,13 @@
       return sym + val.toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
     },
 
-  fmtUSD(usdAmount) {
-  const amt = parseFloat(usdAmount) || 0;
-  if (this.displayCurrency === "INR") {
-    return "₹" + (amt * this.liveUsdInrRate).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
-  }
-  return "$" + amt.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
-},
+    fmtUSD(usdAmount) {
+      if (this.displayCurrency === "INR") {
+        return "₹" + (usdAmount * this.liveUsdInrRate).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+      }
+      return "$" + usdAmount.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+    },
+
     setCurrencyMode(mode) {
       this.displayCurrency = mode;
       document.getElementById("cur-btn-usd").classList.toggle("active", mode === "USD");
@@ -994,8 +994,7 @@
     },
 
     syncTradeView() {
-  const cash = this.activeUser?.cash ?? 0;
-  document.getElementById("trade-cash-badge").textContent = "Cash: "+this.fmtUSD(cash);
+      document.getElementById("trade-cash-badge").textContent = "Cash: "+this.fmtUSD(this.activeUser.cash);
       document.getElementById("trade-qty-input").value = "";
       if (!this.tradeAsset) {
         document.getElementById("trade-search-input").value = "";
@@ -1165,25 +1164,18 @@
         this.nativeChartRawDataset = [];
         const seen = new Set();
         for (let i=0; i<ticks.length; i++) {
-         const o = parseFloat(q.open[i]);
-        const h = parseFloat(q.high[i]);
-        const l = parseFloat(q.low[i]);
-        const cl = parseFloat(q.close[i]);
-        if (!isFinite(o) || !isFinite(h) || !isFinite(l) || !isFinite(cl)) continue;
-        // Clamp high/low in case Yahoo returns inverted values
-        const safeHigh = Math.max(o, h, l, cl);
-        const safeLow  = Math.min(o, h, l, cl);
-        const timeVal = isIntraday ? ticks[i] : this.tsToDateStr(ticks[i]);
-        if (seen.has(String(timeVal))) continue;
-        seen.add(String(timeVal));
-        this.nativeChartRawDataset.push({
-          time:   timeVal,
-          open:   o,
-          high:   safeHigh,
-          low:    safeLow,
-          close:  cl,
-          volume: isFinite(parseFloat(q.volume?.[i])) ? parseFloat(q.volume[i]) : 0
-});
+          if (q.close[i]==null||q.open[i]==null||isNaN(q.close[i])||isNaN(q.open[i])) continue;
+          const timeVal = isIntraday ? ticks[i] : this.tsToDateStr(ticks[i]);
+          if (seen.has(String(timeVal))) continue;
+          seen.add(String(timeVal));
+          this.nativeChartRawDataset.push({
+            time:   timeVal,
+            open:   parseFloat(q.open[i]),
+            high:   parseFloat(q.high[i]),
+            low:    parseFloat(q.low[i]),
+            close:  parseFloat(q.close[i]),
+            volume: q.volume[i] ? parseFloat(q.volume[i]) : 0
+          });
         }
         this.nativeChartRawDataset.sort((a,b) => {
           if (typeof a.time==="string") return a.time<b.time?-1:a.time>b.time?1:0;
