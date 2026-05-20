@@ -190,6 +190,14 @@
       .brand-title{font-size:2.5rem}
       .kpi-strip{grid-template-columns:1fr 1fr}
     }
+
+/* market status bar */
+.mkt-bar{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;margin-bottom:1.5rem;background:var(--bg-card);border:1px solid var(--b);border-radius:var(--r-md);font-family:var(--font-mono);font-size:.72rem;flex-wrap:wrap}
+.mkt-tag{padding:.12rem .45rem;border-radius:var(--r-sm);font-size:.62rem;font-weight:700;letter-spacing:.04em}
+.mkt-tag.open{background:var(--acg);color:var(--ac);border:1px solid rgba(0,255,136,.15)}
+.mkt-tag.closed{background:var(--red-glow);color:var(--red-bright);border:1px solid rgba(255,56,96,.2)}
+.mkt-tag.pre{background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+    
   </style>
 </head>
 <body data-theme="dark">
@@ -267,6 +275,15 @@
   </nav>
 
   <main class="workspace">
+    <div class="mkt-bar" id="mkt-bar">
+  <span id="mkt-dot" style="font-size:.6rem;color:var(--td)">●</span>
+  <span id="mkt-nse">NSE / BSE</span>
+  <span class="mkt-tag closed" id="mkt-nse-tag">—</span>
+  <span style="color:var(--td)">·</span>
+  <span id="mkt-us">NYSE / NASDAQ</span>
+  <span class="mkt-tag closed" id="mkt-us-tag">—</span>
+  <span style="margin-left:auto;color:var(--td);font-size:.65rem" id="mkt-time"></span>
+</div>
     <!-- PORTFOLIO -->
     <section id="v-port" class="vp">
       <div class="view-hdr">
@@ -511,6 +528,56 @@ const App={
   maSeries:{}, activeMA:new Set(),
   chartStyle:'candlestick', cRange:'max', cInterval:'1wk', rawData:[],
 
+  PROXIES:[
+    u=>`https://corsproxy.io/?${encodeURIComponent(u)}`,
+    u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
+  ],
+
+  async yahooFetch(symbol,interval,range){
+    const base=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
+    for(let i=0;i<this.PROXIES.length;i++){
+      try{
+        const ctrl=new AbortController();
+        const tid=setTimeout(()=>ctrl.abort(),9000);
+        const res=await fetch(this.PROXIES[i](base),{signal:ctrl.signal});
+        clearTimeout(tid);
+        if(!res.ok) continue;
+        return await res.json();
+      }catch(e){if(i===this.PROXIES.length-1)throw e;}
+    }
+  },
+
+  looksIndian(q){
+    const u=q.trim().toUpperCase();
+    return u.endsWith('.NS')||u.endsWith('.BO')||
+           u.startsWith('^NSE')||u.startsWith('^BSE')||
+           u==='^NSEI'||u==='^BSESN'||u==='^NSEBANK';
+  },
+
+  updateMarketBar(){
+    const now=new Date();
+    const ist=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
+    const istDay=ist.getDay(),istMins=ist.getHours()*60+ist.getMinutes();
+    const nseOpen=istDay>=1&&istDay<=5&&istMins>=9*60+15&&istMins<15*60+30;
+    const nsePreOpen=istDay>=1&&istDay<=5&&istMins>=9*60&&istMins<9*60+15;
+    const et=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
+    const etDay=et.getDay(),etMins=et.getHours()*60+et.getMinutes();
+    const usOpen=etDay>=1&&etDay<=5&&etMins>=9*60+30&&etMins<16*60;
+    const dot=document.getElementById('mkt-dot');
+    const nseEl=document.getElementById('mkt-nse');
+    const nseTag=document.getElementById('mkt-nse-tag');
+    const usTag=document.getElementById('mkt-us-tag');
+    const timeEl=document.getElementById('mkt-time');
+    if(!dot)return;
+    dot.style.color=nseOpen?'var(--ac)':'var(--red-bright)';
+    nseTag.className='mkt-tag '+(nseOpen?'open':nsePreOpen?'pre':'closed');
+    nseTag.textContent=nseOpen?'OPEN':nsePreOpen?'PRE-OPEN':'CLOSED';
+    nseEl.textContent='NSE / BSE · '+ist.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+    usTag.className='mkt-tag '+(usOpen?'open':'closed');
+    usTag.textContent=usOpen?'OPEN':'CLOSED';
+    if(timeEl)timeEl.textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+  },
+
   stocks:[
     {sym:'RELIANCE.NS',  name:'Reliance Industries',     cat:'india'},
     {sym:'TCS.NS',       name:'Tata Consultancy',         cat:'india'},
@@ -571,7 +638,8 @@ const App={
   init(){
     Popup.init();
     this.bindAuth(); this.bindNav(); this.bindTrade(); this.bindTheme();
-    this.bindFilters(); this.renderPills(); this.renderTape();
+    this.bindFilters(); this.renderPills(); this.renderTape(); this.updateMarketBar();
+setInterval(() => this.updateMarketBar(), 60000);
     // fetch live INR rate on load
     fetch('/api/fx/inr').then(r=>r.json()).then(d=>{if(d.usdInrRate)this.inrRate=d.usdInrRate;this.updateFxStrip();}).catch(()=>{});
   },
@@ -733,39 +801,75 @@ const App={
     document.getElementById('search-err').classList.add('hidden');
     this.calcOrder();
   },
-  async searchTicker(){
+async searchTicker(){
     const errEl=document.getElementById('search-err'); errEl.classList.add('hidden');
     const q=document.getElementById('search-in').value.trim(); if(!q) return;
     const btn=document.getElementById('btn-search'); btn.disabled=true; btn.textContent='Searching…';
     try{
-      const r=await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
-      const d=await r.json();
-      if(!r.ok){errEl.textContent=d.error||'Lookup failed.';errEl.classList.remove('hidden');return;}
-      this.asset=d;
-      if(d.usdInrRate) this.inrRate=d.usdInrRate;
+        // Step 1: get ticker routing from backend (Groq AI identification)
+        let routing=null;
+        try{
+            const r=await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
+            const d=await r.json();
+            if(r.ok) routing=d;
+        }catch(e){}
 
-      document.getElementById('ticker-panel').classList.remove('hidden');
-      document.getElementById('t-sym').textContent=d.cleanName;
-      document.getElementById('t-name').textContent=d.assetClassDescription||'';
+        const isIndian = routing ? routing.currency==='INR' : this.looksIndian(q);
 
-      const priceStr=this.fmtNative(d.price,d.currency);
-      document.getElementById('t-price').textContent=priceStr;
-      const chgStr=(d.change>=0?'+':'')+this.fmtNative(Math.abs(d.change),d.currency).slice(1)+' ('+(d.pct>=0?'+':'')+d.pct.toFixed(2)+'%)';
-      const chgEl=document.getElementById('t-chg'); chgEl.textContent=chgStr; chgEl.className=d.change>=0?'gain':'loss';
+        if(isIndian){
+            // Always fetch price client-side for Indian stocks — works regardless of market hours
+            let symbol = routing?.symbol;
+            if(!symbol){
+                const u=q.trim().toUpperCase();
+                symbol=(u.endsWith('.NS')||u.endsWith('.BO')||u.startsWith('^'))?u:u+'.NS';
+            }
+            let json;
+            try{ json=await this.yahooFetch(symbol,'1d','5d'); }
+            catch(e){ errEl.textContent=`Could not fetch '${symbol}' — check connection.`; errEl.classList.remove('hidden'); return; }
 
-      document.getElementById('st-price').textContent=this.fmtNative(d.price,d.currency);
-      document.getElementById('st-high').textContent=this.fmtNative(d.high,d.currency);
-      document.getElementById('st-low').textContent=this.fmtNative(d.low,d.currency);
-      document.getElementById('st-sym').textContent=d.symbol;
-      const usdEq=d.currency==='INR'?'$'+(d.price/this.inrRate).toFixed(4)+' USD':'—';
-      document.getElementById('st-usd').textContent=usdEq;
+            const result=json?.chart?.result?.[0];
+            if(!result){ errEl.textContent=`Symbol '${symbol}' not found.`; errEl.classList.remove('hidden'); return; }
 
-      this.syncSlider();
-      this.loadChart();
-      this.calcOrder();
-    }catch(e){errEl.textContent='Network error. Try again.';errEl.classList.remove('hidden');}
-    finally{btn.disabled=false;btn.textContent='Search';}
-  },
+            const meta=result.meta, qd=result.indicators.quote[0], ts=result.timestamp||[];
+            let price=meta.regularMarketPrice??meta.previousClose??0;
+            let prev=meta.chartPreviousClose??meta.previousClose??price;
+            let lastHigh=price, lastLow=price;
+
+            for(let i=ts.length-1;i>=0;i--){
+                if(qd.close[i]!=null){
+                    price=qd.close[i]; lastHigh=qd.high?.[i]??price; lastLow=qd.low?.[i]??price; break;
+                }
+            }
+            const change=price-prev, pct=prev?(change/prev)*100:0;
+            this.asset={
+                symbol, price, change, pct, high:lastHigh, low:lastLow,
+                currency:'INR', provider:'yahoo', usdInrRate:this.inrRate,
+                cleanName: routing?.cleanName ?? meta.shortName ?? meta.longName ?? symbol.replace('.NS','').replace('.BO','').replace(/^\^/,''),
+                assetClassDescription: routing?.assetClassDescription ?? meta.longName ?? '',
+            };
+        } else {
+            if(!routing){ errEl.textContent='Could not reach server — is Flask running?'; errEl.classList.remove('hidden'); return; }
+            this.asset=routing;
+        }
+
+        if(this.asset.usdInrRate) this.inrRate=this.asset.usdInrRate;
+
+        document.getElementById('ticker-panel').classList.remove('hidden');
+        document.getElementById('t-sym').textContent=this.asset.cleanName;
+        document.getElementById('t-name').textContent=this.asset.assetClassDescription||'';
+        document.getElementById('t-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
+        const sign=this.asset.change>=0?'+':'';
+        const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).slice(1)+' ('+sign+this.asset.pct.toFixed(2)+'%)';
+        const chgEl=document.getElementById('t-chg'); chgEl.textContent=chgStr; chgEl.className=this.asset.change>=0?'gain':'loss';
+        document.getElementById('st-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
+        document.getElementById('st-high').textContent=this.fmtNative(this.asset.high,this.asset.currency);
+        document.getElementById('st-low').textContent=this.fmtNative(this.asset.low,this.asset.currency);
+        document.getElementById('st-sym').textContent=this.asset.symbol;
+        document.getElementById('st-usd').textContent=this.asset.currency==='INR'?'$'+(this.asset.price/this.inrRate).toFixed(4)+' USD':'—';
+        this.syncSlider(); this.loadChart(); this.calcOrder();
+    }catch(e){ errEl.textContent='Network error. Try again.'; errEl.classList.remove('hidden'); console.error(e); }
+    finally{ btn.disabled=false; btn.textContent='Search'; }
+},
   syncSlider(){
     if(!this.asset) return;
     const owned=this.posCache[this.asset.symbol]||0;
@@ -939,28 +1043,34 @@ const App={
     }
     line.setData(data); this.maSeries[period]=line;
   },
-  async fetchChart(){
+ async fetchChart(){
     if(!this.asset) return;
     const loadEl=document.getElementById('cload'); if(loadEl) loadEl.style.display='flex';
-    const url=`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`;
+    const isIndian=this.asset.currency==='INR'||this.looksIndian(this.asset.symbol);
     try{
-      const r=await fetch(url); const json=await r.json();
-      const result=json?.chart?.result?.[0];
-      if(!result||!result.timestamp?.length){if(loadEl)loadEl.innerHTML='<span style="color:var(--red-bright)">No chart data available</span>';return;}
-      if(loadEl) loadEl.style.display='none';
-      const q=result.indicators.quote[0];
-      const intra=['2m','5m','15m','30m','60m','90m','1h'].includes(this.cInterval);
-      const seen=new Set(); this.rawData=[];
-      for(let i=0;i<result.timestamp.length;i++){
-        if(q.close[i]==null||q.open[i]==null) continue;
-        const t=intra?result.timestamp[i]:this.toDS(result.timestamp[i]);
-        if(seen.has(String(t))) continue; seen.add(String(t));
-        this.rawData.push({time:t,open:+q.open[i].toFixed(2),high:+q.high[i].toFixed(2),low:+q.low[i].toFixed(2),close:+q.close[i].toFixed(2),volume:q.volume[i]||0});
-      }
-      this.rawData.sort((a,b)=>typeof a.time==='string'?a.time<b.time?-1:1:a.time-b.time);
-      this.applyData(); this.activeMA.forEach(p=>this.buildMA(p));
-    }catch(e){if(loadEl)loadEl.innerHTML=`<span style="color:var(--red-bright)">${e.message}</span>`;}
-  },
+        let json;
+        if(isIndian){
+            json=await this.yahooFetch(this.asset.symbol, this.cInterval, this.cRange);
+        } else {
+            const r=await fetch(`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`);
+            json=await r.json();
+        }
+        const result=json?.chart?.result?.[0];
+        if(!result||!result.timestamp?.length){ if(loadEl) loadEl.innerHTML='<span style="color:var(--red-bright)">No chart data available</span>'; return; }
+        if(loadEl) loadEl.style.display='none';
+        const q=result.indicators.quote[0];
+        const intra=['2m','5m','15m','30m','60m','90m','1h'].includes(this.cInterval);
+        const seen=new Set(); this.rawData=[];
+        for(let i=0;i<result.timestamp.length;i++){
+            if(q.close[i]==null||q.open[i]==null) continue;
+            const t=intra?result.timestamp[i]:this.toDS(result.timestamp[i]);
+            if(seen.has(String(t))) continue; seen.add(String(t));
+            this.rawData.push({time:t,open:+(q.open[i].toFixed(2)),high:+(q.high[i].toFixed(2)),low:+(q.low[i].toFixed(2)),close:+(q.close[i].toFixed(2)),volume:q.volume[i]||0});
+        }
+        this.rawData.sort((a,b)=>typeof a.time==='string'?a.time<b.time?-1:1:a.time-b.time);
+        this.applyData(); this.activeMA.forEach(p=>this.buildMA(p));
+    }catch(e){ if(loadEl) loadEl.innerHTML=`<span style="color:var(--red-bright)">${e.message}</span>`; }
+},
   applyData(){
     if(!this.mainSeries||!this.volSeries||!this.rawData.length) return;
     if(this.chartStyle==='candlestick') this.mainSeries.setData(this.rawData);
