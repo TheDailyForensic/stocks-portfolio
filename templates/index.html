@@ -173,7 +173,6 @@
     .kpi-lbl-flex{display:flex;align-items:center;justify-content:space-between;font-family:var(--font-mono);font-size:.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.05em;}
     .kpi-val{font-family:var(--font-mono);font-size:1.6rem;font-weight:700;margin-top:.4rem;line-height:1.2;}
 
-    /* Help badge — styled tooltip trigger */
     .help-badge{
       display:inline-flex;align-items:center;justify-content:center;
       background:var(--bg-hover);color:var(--text-secondary);
@@ -256,7 +255,6 @@
     }
     @media(max-width:768px){
       html{font-size:14px;}
-      /* Mobile: sidebar becomes top navigation */
       .app-container{flex-direction:column;}
       .sidebar{
         width:100%;height:auto;position:sticky;top:0;
@@ -266,25 +264,13 @@
       }
       .sidebar-brand{font-size:1.6rem;margin-bottom:.75rem;text-align:left;}
       .sidebar-user{flex-direction:row;justify-content:space-between;align-items:center;margin-bottom:.75rem;padding:.6rem .8rem;}
-      .nav-list{
-        flex-direction:row;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem;
-      }
+      .nav-list{flex-direction:row;flex-wrap:wrap;gap:.3rem;margin-bottom:.5rem;}
       .nav-list li{flex:1 1 calc(50% - .15rem);min-width:120px;}
-      .nav-btn{
-        width:100%;justify-content:center;padding:.6rem .5rem;
-        font-size:.72rem;background:var(--bg-input);border:1px solid var(--border);
-        text-align:center;border-radius:var(--radius-md);
-      }
+      .nav-btn{width:100%;justify-content:center;padding:.6rem .5rem;font-size:.72rem;background:var(--bg-input);border:1px solid var(--border);text-align:center;border-radius:var(--radius-md);}
       .nav-btn:hover{padding-left:.5rem;}
-      .nav-btn.active{
-        border-left:none;border-top:2px solid var(--accent);padding-left:.5rem;
-        border-radius:var(--radius-md);
-      }
+      .nav-btn.active{border-left:none;border-top:2px solid var(--accent);padding-left:.5rem;border-radius:var(--radius-md);}
       .btn-logout{margin-top:.5rem;padding:.6rem;font-size:.78rem;}
-      .workspace{
-        margin-left:0;width:100%;
-        padding:1.25rem 1rem 5rem 1rem;
-      }
+      .workspace{margin-left:0;width:100%;padding:1.25rem 1rem 5rem 1rem;}
       .view-title{font-size:1.9rem;}
       .view-header{flex-direction:column;align-items:flex-start;gap:.75rem;}
       .chart-box-wrapper{height:320px;}
@@ -395,31 +381,19 @@
         </div>
         <div class="kpi-strip">
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">
-              Total Value
-              <span class="help-badge" data-tip="Your total portfolio value: cash on hand plus the current market value of all your stocks.">?</span>
-            </div>
+            <div class="kpi-lbl-flex">Total Value<span class="help-badge" data-tip="Your total portfolio value: cash on hand plus the current market value of all your stocks.">?</span></div>
             <div class="kpi-val" id="p-kpi-total">$0.00</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">
-              Cash Available
-              <span class="help-badge" data-tip="Money you haven't invested yet. Ready to buy stocks.">?</span>
-            </div>
+            <div class="kpi-lbl-flex">Cash Available<span class="help-badge" data-tip="Money you haven't invested yet. Ready to buy stocks.">?</span></div>
             <div class="kpi-val" id="p-kpi-cash">$0.00</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">
-              Invested
-              <span class="help-badge" data-tip="Current market value of all your open stock positions (in USD equivalent).">?</span>
-            </div>
+            <div class="kpi-lbl-flex">Invested<span class="help-badge" data-tip="Current market value of all your open stock positions (in USD equivalent).">?</span></div>
             <div class="kpi-val" id="p-kpi-invested">$0.00</div>
           </div>
           <div class="kpi-card">
-            <div class="kpi-lbl-flex">
-              Total Return
-              <span class="help-badge" data-tip="How much you've gained or lost compared to your $10,000 starting balance.">?</span>
-            </div>
+            <div class="kpi-lbl-flex">Total Return<span class="help-badge" data-tip="How much you've gained or lost compared to your $10,000 starting balance.">?</span></div>
             <div class="kpi-val" id="p-kpi-return">0.00%</div>
           </div>
         </div>
@@ -601,7 +575,7 @@
   <script>
   // ── POPUP SYSTEM ──────────────────────────────────────────────────────────
   const Popup = {
-    el: null, box: null, icon: null, title: null, body: null, actions: null,
+    el:null, box:null, icon:null, title:null, body:null, actions:null,
     init() {
       this.el      = document.getElementById("global-popup");
       this.box     = document.getElementById("popup-box");
@@ -609,19 +583,19 @@
       this.title   = document.getElementById("popup-title");
       this.body    = document.getElementById("popup-body");
       this.actions = document.getElementById("popup-actions");
-      this.el.addEventListener("click", e => { if (e.target === this.el) this.close(); });
-      document.addEventListener("keydown", e => { if (e.key === "Escape") this.close(); });
+      this.el.addEventListener("click", e => { if (e.target===this.el) this.close(); });
+      document.addEventListener("keydown", e => { if (e.key==="Escape") this.close(); });
     },
     show({ type="info", icon="ℹ️", title="Notice", body="", buttons=[] }) {
       this.box.className = `popup-box ${type}`;
-      this.icon.textContent = icon;
+      this.icon.textContent  = icon;
       this.title.textContent = title;
-      this.body.innerHTML = body;
+      this.body.innerHTML    = body;
       this.actions.innerHTML = "";
-      const defaultBtns = buttons.length ? buttons : [{ label:"OK", cls:"primary", cb: ()=>this.close() }];
+      const defaultBtns = buttons.length ? buttons : [{ label:"OK", cls:"primary", cb:()=>this.close() }];
       defaultBtns.forEach(b => {
         const btn = document.createElement("button");
-        btn.className = `popup-btn ${b.cls||"primary"}`;
+        btn.className   = `popup-btn ${b.cls||"primary"}`;
         btn.textContent = b.label;
         btn.addEventListener("click", () => { this.close(); if (b.cb) b.cb(); });
         this.actions.appendChild(btn);
@@ -635,14 +609,14 @@
     },
     success(title, body) { return this.show({ type:"success", icon:"✅", title, body }); },
     error(title, body)   { return this.show({ type:"error",   icon:"❌", title, body }); },
-    info(title, body)    { return this.show({ type:"info",    icon:"ℹ️", title, body }); },
+    info(title, body)    { return this.show({ type:"info",    icon:"ℹ️",  title, body }); },
     confirm(title, body) {
       return new Promise(res => {
         this.show({
           type:"info", icon:"❓", title, body,
-          buttons: [
-            { label:"Cancel",  cls:"secondary", cb: ()=>res(false) },
-            { label:"Confirm", cls:"primary",   cb: ()=>res(true)  }
+          buttons:[
+            { label:"Cancel",  cls:"secondary", cb:()=>res(false) },
+            { label:"Confirm", cls:"primary",   cb:()=>res(true)  }
           ]
         });
       });
@@ -651,35 +625,28 @@
 
   // ── TOOLTIP SYSTEM ────────────────────────────────────────────────────────
   const Tooltip = {
-    el: null, timer: null,
+    el:null, timer:null,
     init() {
       this.el = document.getElementById("tooltip-popup");
       document.addEventListener("mouseover", e => {
-        const target = e.target.closest("[data-tip]");
-        if (!target) return;
+        const t = e.target.closest("[data-tip]"); if (!t) return;
         clearTimeout(this.timer);
-        this.el.textContent = target.dataset.tip;
+        this.el.textContent = t.dataset.tip;
         this.el.classList.add("visible");
         this.position(e);
       });
-      document.addEventListener("mousemove", e => {
-        if (this.el.classList.contains("visible")) this.position(e);
-      });
-      document.addEventListener("mouseout", e => {
+      document.addEventListener("mousemove", e => { if (this.el.classList.contains("visible")) this.position(e); });
+      document.addEventListener("mouseout",  e => {
         if (!e.target.closest("[data-tip]")) return;
         this.timer = setTimeout(() => this.el.classList.remove("visible"), 150);
       });
     },
     position(e) {
-      const pad = 12;
-      let x = e.clientX + pad;
-      let y = e.clientY + pad;
-      const w = this.el.offsetWidth || 200;
-      const h = this.el.offsetHeight || 60;
-      if (x + w > window.innerWidth - pad) x = e.clientX - w - pad;
-      if (y + h > window.innerHeight - pad) y = e.clientY - h - pad;
-      this.el.style.left = x + "px";
-      this.el.style.top  = y + "px";
+      const pad=12, w=this.el.offsetWidth||200, h=this.el.offsetHeight||60;
+      let x=e.clientX+pad, y=e.clientY+pad;
+      if (x+w>window.innerWidth-pad)  x=e.clientX-w-pad;
+      if (y+h>window.innerHeight-pad) y=e.clientY-h-pad;
+      this.el.style.left=x+"px"; this.el.style.top=y+"px";
     }
   };
 
@@ -733,20 +700,20 @@
 
     fmtUSD(usdAmount) {
       if (this.displayCurrency === "INR") {
-        return "₹" + (usdAmount * this.liveUsdInrRate).toLocaleString("en-IN",{minimumFractionDigits:2,maximumFractionDigits:2});
+        return "₹" + (usdAmount * this.liveUsdInrRate).toLocaleString("en-IN", {minimumFractionDigits:2, maximumFractionDigits:2});
       }
-      return "$" + usdAmount.toLocaleString("en-US",{minimumFractionDigits:2,maximumFractionDigits:2});
+      return "$" + usdAmount.toLocaleString("en-US", {minimumFractionDigits:2, maximumFractionDigits:2});
     },
 
     setCurrencyMode(mode) {
       this.displayCurrency = mode;
-      document.getElementById("cur-btn-usd").classList.toggle("active", mode === "USD");
-      document.getElementById("cur-btn-inr").classList.toggle("active", mode === "INR");
+      document.getElementById("cur-btn-usd").classList.toggle("active", mode==="USD");
+      document.getElementById("cur-btn-inr").classList.toggle("active", mode==="INR");
       this.updateFxRateDisplay();
-      document.getElementById("port-cur-label").textContent = mode === "USD" ? "USD ($)" : "INR (₹)";
+      document.getElementById("port-cur-label").textContent = mode==="USD" ? "USD ($)" : "INR (₹)";
       if (this.activeUser) {
-        document.getElementById("trade-cash-badge").textContent = "Cash: " + this.fmtUSD(this.activeUser.cash);
-        document.getElementById("p-kpi-cash").textContent = this.fmtUSD(this.activeUser.cash);
+        document.getElementById("trade-cash-badge").textContent = "Cash: "+this.fmtUSD(this.activeUser.cash);
+        document.getElementById("p-kpi-cash").textContent       = this.fmtUSD(this.activeUser.cash);
       }
       if (this._lastPortfolioData) this.renderPortfolioData(this._lastPortfolioData);
     },
@@ -756,7 +723,7 @@
       if (el) el.textContent = `Live rate: 1 USD = ₹${this.liveUsdInrRate.toFixed(2)} INR  |  Displaying in: ${this.displayCurrency}`;
     },
 
-    // ── Init ──────────────────────────────────────────────────────────────────
+    // ── Init ─────────────────────────────────────────────────────────────────
     init() {
       Popup.init();
       Tooltip.init();
@@ -773,8 +740,8 @@
       document.getElementById("tab-reg-toggle").addEventListener("click",   () => this.switchAuthTab("register"));
       document.getElementById("btn-submit-login").addEventListener("click",    () => this.processLoginUplink());
       document.getElementById("btn-submit-register").addEventListener("click", () => this.processRegisterInitialization());
-      document.getElementById("btn-logout-action").addEventListener("click", () => this.terminateSessionUplink());
-      document.getElementById("btn-fetch-ticker").addEventListener("click",  () => this.executeTickerQuery());
+      document.getElementById("btn-logout-action").addEventListener("click",   () => this.terminateSessionUplink());
+      document.getElementById("btn-fetch-ticker").addEventListener("click",    () => this.executeTickerQuery());
 
       const loginEnter = e => { if (e.key==="Enter") this.processLoginUplink(); };
       document.getElementById("in-login-user").addEventListener("keypress", loginEnter);
@@ -789,9 +756,9 @@
 
       document.getElementById("toggle-buy").addEventListener("click",  () => this.updateTradeModeConfiguration("buy"));
       document.getElementById("toggle-sell").addEventListener("click", () => this.updateTradeModeConfiguration("sell"));
-      document.getElementById("trade-qty-slider").addEventListener("input",  e => this.processSellSlider(e.target.value));
-      document.getElementById("trade-qty-input").addEventListener("input",   () => this.runTradeCalc());
-      document.getElementById("btn-dispatch-order").addEventListener("click",() => this.dispatchOrder());
+      document.getElementById("trade-qty-slider").addEventListener("input", e => this.processSellSlider(e.target.value));
+      document.getElementById("trade-qty-input").addEventListener("input",  () => this.runTradeCalc());
+      document.getElementById("btn-dispatch-order").addEventListener("click", () => this.dispatchOrder());
 
       document.querySelectorAll(".nav-btn").forEach(btn => {
         btn.addEventListener("click", e => {
@@ -877,17 +844,19 @@
     // ── Auth ─────────────────────────────────────────────────────────────────
     async processRegisterInitialization() {
       const err = document.getElementById("reg-error-box"); err.classList.add("hidden");
-      const username = document.getElementById("in-reg-user").value.trim();
+      const username    = document.getElementById("in-reg-user").value.trim();
       const displayName = document.getElementById("in-reg-display").value.trim();
-      const password = document.getElementById("in-reg-pass").value.trim();
+      const password    = document.getElementById("in-reg-pass").value.trim();
       if (!username||!displayName||!password) {
         err.textContent="Please fill in all fields."; err.classList.remove("hidden"); return;
       }
       try {
-        const res = await fetch("/api/auth/register",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,displayName,password})});
+        const res  = await fetch("/api/auth/register", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,displayName,password})});
         const data = await res.json();
-        if (!res.ok) { err.textContent=data.error||"Registration failed."; err.classList.remove("hidden"); }
-        else { this.activeUser=data; this.bootToAppWorkspace(); }
+        if (!res.ok) { err.textContent=data.error||"Registration failed."; err.classList.remove("hidden"); return; }
+        // ✅ FIX: backend now returns flat user object directly
+        this.activeUser = data;
+        this.bootToAppWorkspace();
       } catch(e) { err.textContent="Connection error."; err.classList.remove("hidden"); }
     },
 
@@ -897,10 +866,12 @@
       const password = document.getElementById("in-login-pass").value.trim();
       if (!username||!password) { err.textContent="Please enter your username and password."; err.classList.remove("hidden"); return; }
       try {
-        const res = await fetch("/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
+        const res  = await fetch("/api/auth/login", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username,password})});
         const data = await res.json();
-        if (!res.ok) { err.textContent=data.error||"Login failed."; err.classList.remove("hidden"); }
-        else { this.activeUser=data; this.bootToAppWorkspace(); }
+        if (!res.ok) { err.textContent=data.error||"Login failed."; err.classList.remove("hidden"); return; }
+        // ✅ FIX: backend now returns flat user object directly
+        this.activeUser = data;
+        this.bootToAppWorkspace();
       } catch(e) { err.textContent="Connection error."; err.classList.remove("hidden"); }
     },
 
@@ -915,7 +886,7 @@
     async terminateSessionUplink() {
       const confirmed = await Popup.confirm("Log Out", "Are you sure you want to log out?");
       if (!confirmed) return;
-      try { await fetch("/api/auth/logout",{method:"POST"}); } catch(e) {}
+      try { await fetch("/api/auth/logout", {method:"POST"}); } catch(e) {}
       this.activeUser=null; this.tradeAsset=null; this.userPositionsCache={}; this.nativeChartRawDataset=[]; this._lastPortfolioData=null;
       document.getElementById("screen-app").classList.add("hidden");
       document.getElementById("screen-auth").classList.remove("hidden");
@@ -925,6 +896,7 @@
     // ── Portfolio ─────────────────────────────────────────────────────────────
     async syncPortfolioView() {
       try {
+        // ✅ FIX: correct endpoint /api/user/portfolio
         const res = await fetch("/api/user/portfolio");
         if (!res.ok) return;
         const totals = await res.json();
@@ -933,7 +905,7 @@
         this._lastPortfolioData = totals;
         this.userPositionsCache = {};
         this.renderPortfolioData(totals);
-      } catch(err) { console.error("Portfolio sync failed",err); }
+      } catch(err) { console.error("Portfolio sync failed", err); }
     },
 
     renderPortfolioData(totals) {
@@ -942,7 +914,7 @@
       document.getElementById("p-kpi-invested").textContent = this.fmtUSD(totals.invested);
       const yieldEl = document.getElementById("p-kpi-return");
       yieldEl.textContent = (totals.returns>=0?"+":"")+totals.returns.toFixed(2)+"%";
-      yieldEl.className = "kpi-val "+(totals.returns>=0?"gain":"loss");
+      yieldEl.className   = "kpi-val "+(totals.returns>=0?"gain":"loss");
 
       const body = document.getElementById("portfolio-positions-table"); body.innerHTML="";
       if (!totals.positions||totals.positions.length===0) {
@@ -956,10 +928,10 @@
           row.innerHTML = `
             <td><span class="sym-badge">${pos.symbol}</span></td>
             <td>${pos.shares.toFixed(4)}</td>
-            <td>${this.fmtPrice(pos.avgCost,pos.currency)}</td>
-            <td>${this.fmtPrice(pos.currentPrice,pos.currency)}</td>
-            <td>${this.fmtPrice(pos.marketValue,pos.currency)}</td>
-            <td class="${pos.gainLoss>=0?'gain':'loss'}">${pos.gainLoss>=0?'+':''}${this.fmtPrice(pos.gainLoss,pos.currency)} (${pos.gainLossPct>=0?'+':''}${pos.gainLossPct.toFixed(2)}%)</td>
+            <td>${this.fmtPrice(pos.avgCost, pos.currency)}</td>
+            <td>${this.fmtPrice(pos.currentPrice, pos.currency)}</td>
+            <td>${this.fmtPrice(pos.marketValue, pos.currency)}</td>
+            <td class="${pos.gainLoss>=0?'gain':'loss'}">${pos.gainLoss>=0?'+':''}${this.fmtPrice(pos.gainLoss, pos.currency)} (${pos.gainLossPct>=0?'+':''}${pos.gainLossPct.toFixed(2)}%)</td>
           `;
           row.addEventListener("click", () => this.loadAssetFromDirectRowClick(row.dataset.lookupQuery));
           body.appendChild(row);
@@ -977,8 +949,8 @@
             <td style="font-weight:700;" class="${log.type==='BUY'?'gain':'loss'}">${log.type}</td>
             <td><span class="sym-badge">${log.cleanSymbol}</span></td>
             <td>${log.shares.toFixed(4)}</td>
-            <td>${this.fmtPrice(log.price,log.currency)}</td>
-            <td>${this.fmtPrice(log.sum,log.currency)}</td>
+            <td>${this.fmtPrice(log.price, log.currency)}</td>
+            <td>${this.fmtPrice(log.sum, log.currency)}</td>
             <td>${this.fmtUSD(log.sumUsd||0)}</td>
           `;
           logsBody.appendChild(row);
@@ -994,7 +966,7 @@
     },
 
     syncTradeView() {
-      document.getElementById("trade-cash-badge").textContent = "Cash: "+this.fmtUSD(this.activeUser.cash);
+      document.getElementById("trade-cash-badge").textContent = "Cash: "+this.fmtUSD(this.activeUser?.cash||0);
       document.getElementById("trade-qty-input").value = "";
       if (!this.tradeAsset) {
         document.getElementById("trade-search-input").value = "";
@@ -1012,9 +984,11 @@
       const btn = document.getElementById("btn-fetch-ticker");
       btn.disabled=true; btn.textContent="Searching...";
       try {
-        const res = await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
+        // ✅ FIX: correct endpoint GET /api/market/query
+        const res  = await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
         const data = await res.json();
         if (!res.ok) { errEl.textContent=data.error||"Lookup failed."; errEl.classList.remove("hidden"); return; }
+
         this.tradeAsset = data;
         if (data.usdInrRate) this.liveUsdInrRate = data.usdInrRate;
 
@@ -1026,13 +1000,13 @@
         const chgEl = document.getElementById("t-display-change");
         const chgFmt = this.fmtPrice(Math.abs(data.change), data.currency);
         chgEl.textContent = (data.change>=0?"+":"-")+chgFmt.slice(1)+" ("+(data.pct>=0?"+":"")+data.pct.toFixed(2)+"%)";
-        chgEl.className = data.change>=0?"gain":"loss";
+        chgEl.className   = data.change>=0 ? "gain" : "loss";
 
-        document.getElementById("t-stat-price").textContent     = this.fmtPrice(data.price, data.currency);
-        document.getElementById("t-stat-high").textContent      = this.fmtPrice(data.high, data.currency);
-        document.getElementById("t-stat-low").textContent       = this.fmtPrice(data.low, data.currency);
-        document.getElementById("t-stat-rawtoken").textContent  = data.symbol;
-        document.getElementById("t-stat-usd").textContent       = data.currency==="INR" ? "$"+(data.price/this.liveUsdInrRate).toFixed(4)+" USD" : "—";
+        document.getElementById("t-stat-price").textContent    = this.fmtPrice(data.price, data.currency);
+        document.getElementById("t-stat-high").textContent     = this.fmtPrice(data.high,  data.currency);
+        document.getElementById("t-stat-low").textContent      = this.fmtPrice(data.low,   data.currency);
+        document.getElementById("t-stat-rawtoken").textContent = data.symbol;
+        document.getElementById("t-stat-usd").textContent      = data.currency==="INR" ? "$"+(data.price/this.liveUsdInrRate).toFixed(4)+" USD" : "—";
 
         this.syncSellSliderContext();
         this.renderVisualsChartModule();
@@ -1058,11 +1032,9 @@
         this.injectTradingViewWidget(this.tradeAsset.symbol);
       } else {
         tvC.style.display="none"; nativeW.classList.remove("hidden");
-        // Reset to "All" range for yahoo stocks
-        this.nativeRangeSetting = "max";
+        this.nativeRangeSetting    = "max";
         this.nativeIntervalSetting = "1wk";
-        // reset active button
-        document.querySelectorAll(".native-ctrl-row button").forEach(b=>{ if(b.id.startsWith("range-btn")) b.classList.remove("active"); });
+        document.querySelectorAll(".native-ctrl-row button").forEach(b => { if(b.id.startsWith("range-btn")) b.classList.remove("active"); });
         const maxBtn = document.getElementById("range-btn-max");
         if (maxBtn) maxBtn.classList.add("active");
         this.initNativeChart();
@@ -1098,19 +1070,19 @@
       cBox.innerHTML=`<div class="chart-status-msg"><div class="spin"></div><span>Loading chart data...</span></div>`;
 
       this.nativeChartInstance = LightweightCharts.createChart(cBox, {
-        width: cBox.offsetWidth, height: 360,
-        layout: {background:{color:"#0d1117"},textColor:"#8b949e"},
-        grid: {vertLines:{color:"#21262d"},horzLines:{color:"#21262d"}},
-        crosshair: {mode:LightweightCharts.CrosshairMode.Normal},
-        rightPriceScale: {borderColor:"#30363d"},
-        timeScale: {borderColor:"#30363d",timeVisible:true,secondsVisible:false}
+        width:cBox.offsetWidth, height:360,
+        layout:{background:{color:"#0d1117"},textColor:"#8b949e"},
+        grid:{vertLines:{color:"#21262d"},horzLines:{color:"#21262d"}},
+        crosshair:{mode:LightweightCharts.CrosshairMode.Normal},
+        rightPriceScale:{borderColor:"#30363d"},
+        timeScale:{borderColor:"#30363d",timeVisible:true,secondsVisible:false}
       });
       this.nativeVolChartInstance = LightweightCharts.createChart(vBox, {
-        width: vBox.offsetWidth, height: 90,
-        layout: {background:{color:"#0d1117"},textColor:"#8b949e"},
-        grid: {vertLines:{color:"#21262d"},horzLines:{color:"#21262d"}},
-        rightPriceScale: {borderColor:"#30363d",visible:false},
-        timeScale: {visible:false}
+        width:vBox.offsetWidth, height:90,
+        layout:{background:{color:"#0d1117"},textColor:"#8b949e"},
+        grid:{vertLines:{color:"#21262d"},horzLines:{color:"#21262d"}},
+        rightPriceScale:{borderColor:"#30363d",visible:false},
+        timeScale:{visible:false}
       });
       this.nativeMainCandleSeries = this.nativeChartInstance.addCandlestickSeries({
         upColor:"#2ea043",downColor:"#f85149",borderColor:"#2ea043",
@@ -1122,45 +1094,34 @@
     },
 
     tsToDateStr(unix) {
-      const d   = new Date(unix * 1000);
-      const y   = d.getUTCFullYear();
-      const m   = String(d.getUTCMonth()+1).padStart(2,"0");
-      const day = String(d.getUTCDate()).padStart(2,"0");
+      const d=new Date(unix*1000), y=d.getUTCFullYear(),
+            m=String(d.getUTCMonth()+1).padStart(2,"0"),
+            day=String(d.getUTCDate()).padStart(2,"0");
       return `${y}-${m}-${day}`;
     },
 
-    // ── KEY FIX: use backend proxy instead of client-side CORS proxies ────────
     async fetchNativeChartData() {
-      const sym      = this.tradeAsset.symbol;
-      const url      = `/api/chart/yahoo?symbol=${encodeURIComponent(sym)}&interval=${this.nativeIntervalSetting}&period=${this.nativeRangeSetting}`;
-      const cBox     = document.getElementById("chart-canvas-container");
-
+      const sym  = this.tradeAsset.symbol;
+      const url  = `/api/chart/yahoo?symbol=${encodeURIComponent(sym)}&interval=${this.nativeIntervalSetting}&period=${this.nativeRangeSetting}`;
+      const cBox = document.getElementById("chart-canvas-container");
       let rootData = null;
       try {
         const resp = await fetch(url);
         if (resp.ok) {
           const json = await resp.json();
-          if (json?.chart?.result?.[0]?.timestamp?.length > 0) {
-            rootData = json;
-          } else if (json?.chart?.error) {
-            console.warn("Yahoo error:", json.chart.error);
-          }
+          if (json?.chart?.result?.[0]?.timestamp?.length > 0) rootData = json;
         }
-      } catch(e) {
-        console.warn("Chart proxy failed:", e.message);
-      }
+      } catch(e) { console.warn("Chart proxy failed:", e.message); }
 
       if (!rootData) {
         if (cBox) cBox.innerHTML=`<div class="chart-status-msg"><span style="color:#f85149;">⚠ Chart unavailable for this symbol</span><span style="font-size:.72rem;margin-top:.3rem;">Price data is still shown above</span></div>`;
         return;
       }
-
       try {
         const result     = rootData.chart.result[0];
         const ticks      = result.timestamp;
         const q          = result.indicators.quote[0];
-        const isIntraday = this.nativeIntervalSetting !== "1d" && this.nativeIntervalSetting !== "1wk" && this.nativeIntervalSetting !== "1mo";
-
+        const isIntraday = this.nativeIntervalSetting!=="1d" && this.nativeIntervalSetting!=="1wk" && this.nativeIntervalSetting!=="1mo";
         this.nativeChartRawDataset = [];
         const seen = new Set();
         for (let i=0; i<ticks.length; i++) {
@@ -1169,17 +1130,17 @@
           if (seen.has(String(timeVal))) continue;
           seen.add(String(timeVal));
           this.nativeChartRawDataset.push({
-            time:   timeVal,
-            open:   parseFloat(q.open[i]),
-            high:   parseFloat(q.high[i]),
-            low:    parseFloat(q.low[i]),
-            close:  parseFloat(q.close[i]),
-            volume: q.volume[i] ? parseFloat(q.volume[i]) : 0
+            time:  timeVal,
+            open:  parseFloat(q.open[i]),
+            high:  parseFloat(q.high[i]),
+            low:   parseFloat(q.low[i]),
+            close: parseFloat(q.close[i]),
+            volume:q.volume[i] ? parseFloat(q.volume[i]) : 0
           });
         }
         this.nativeChartRawDataset.sort((a,b) => {
           if (typeof a.time==="string") return a.time<b.time?-1:a.time>b.time?1:0;
-          return a.time - b.time;
+          return a.time-b.time;
         });
         this.refreshNativeChart();
       } catch(err) {
@@ -1201,7 +1162,7 @@
     },
 
     setNativeRange(rangeVal, intervalVal, btnId) {
-      this.nativeRangeSetting   = rangeVal;
+      this.nativeRangeSetting    = rangeVal;
       this.nativeIntervalSetting = intervalVal;
       document.querySelectorAll(".native-ctrl-row button").forEach(b => { if(b.id.startsWith("range-btn")) b.classList.remove("active"); });
       document.getElementById(btnId).classList.add("active");
@@ -1269,7 +1230,6 @@
       const localCost = qty * this.tradeAsset.price;
       const usdCost   = this.tradeAsset.currency==="INR" ? localCost/this.liveUsdInrRate : localCost;
       const residual  = this.tradeMode==="buy" ? cashUsd-usdCost : cashUsd+usdCost;
-
       document.getElementById("prev-cost").textContent     = this.fmtPrice(localCost, this.tradeAsset.currency);
       document.getElementById("prev-cost-usd").textContent = this.fmtUSD(usdCost);
       const balEl = document.getElementById("prev-residual");
@@ -1280,14 +1240,14 @@
     async dispatchOrder() {
       if (!this.tradeAsset) return;
       const qty = parseFloat(document.getElementById("trade-qty-input").value)||0;
-      if (qty<=0) { await Popup.error("Invalid Quantity", "Please enter a valid number of shares."); return; }
+      if (qty<=0) { await Popup.error("Invalid Quantity","Please enter a valid number of shares."); return; }
 
-      const sym        = this.tradeAsset.symbol;
-      const price      = this.tradeAsset.price;
-      const mode       = this.tradeMode;
-      const localCost  = qty * price;
-      const usdCost    = this.tradeAsset.currency==="INR" ? localCost/this.liveUsdInrRate : localCost;
-      const action     = mode==="buy" ? "Buy" : "Sell";
+      const sym       = this.tradeAsset.symbol;
+      const price     = this.tradeAsset.price;
+      const mode      = this.tradeMode;
+      const localCost = qty * price;
+      const usdCost   = this.tradeAsset.currency==="INR" ? localCost/this.liveUsdInrRate : localCost;
+      const action    = mode==="buy" ? "Buy" : "Sell";
 
       const confirmed = await Popup.confirm(
         `Confirm ${action}`,
@@ -1300,7 +1260,7 @@
       const btn = document.getElementById("btn-dispatch-order");
       btn.disabled=true; btn.textContent="Processing...";
       try {
-        const res  = await fetch("/api/trade/execute",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:sym,qty,mode,price})});
+        const res  = await fetch("/api/trade/execute", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({symbol:sym,qty,mode,price})});
         const data = await res.json();
         if (!res.ok) {
           await Popup.error("Order Failed", data.error||"Something went wrong. Please try again.");
@@ -1317,7 +1277,7 @@
           document.getElementById("trade-search-input").value = "";
           await this.syncPortfolioView();
         }
-      } catch(e) { await Popup.error("Network Error", "Could not connect to the server. Please try again."); }
+      } catch(e) { await Popup.error("Network Error","Could not connect to the server. Please try again."); }
       finally { btn.disabled=false; btn.textContent="Execute Order"; }
     },
 
@@ -1325,10 +1285,11 @@
     async syncLeaderboardView() {
       try {
         const res  = await fetch("/api/leaderboard");
+        // ✅ FIX: backend now returns a plain array
         const data = await res.json();
         const body = document.getElementById("leaderboard-ranking-table"); body.innerHTML="";
-        data.forEach((t,i) => {
-          const tr = document.createElement("tr");
+        data.forEach((t, i) => {
+          const tr    = document.createElement("tr");
           const medal = i===0?"🥇":i===1?"🥈":i===2?"🥉":"";
           tr.innerHTML = `
             <td><strong>${medal} #${i+1}</strong></td>
@@ -1338,7 +1299,7 @@
           `;
           body.appendChild(tr);
         });
-      } catch(e) { console.error("Leaderboard failed",e); }
+      } catch(e) { console.error("Leaderboard failed", e); }
     },
 
     // ── Ticker tape ───────────────────────────────────────────────────────────
@@ -1351,9 +1312,9 @@
         {t:"TCS",s:"₹3,860"},{t:"INFY",s:"₹1,420"},
         {t:"MSFT",s:"$415"},{t:"SENSEX",s:"₹76,400"}
       ];
-      c.innerHTML = "";
+      c.innerHTML="";
       [...items,...items,...items].forEach(i => {
-        const el = document.createElement("div"); el.className="tt-item";
+        const el=document.createElement("div"); el.className="tt-item";
         el.innerHTML=`<span class="tt-sym">${i.t}</span><span class="tt-price">${i.s}</span>`;
         c.appendChild(el);
       });
