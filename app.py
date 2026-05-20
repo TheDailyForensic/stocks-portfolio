@@ -58,7 +58,6 @@ def get_live_usd_inr_rate() -> float:
         return 83.50  # Reliable market benchmark fallback
 
 def interpret_asset_query(user_input: str) -> dict:
-    # Completely removed any reference to AI in prompts and descriptions
     system_instruction = """
     You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
 
@@ -106,7 +105,6 @@ def fetch_live_quote(ticker: str, provider: str):
     else:
         try:
             t = yf.Ticker(ticker)
-            # Safe historical request handling: fall back to 2d range context if 1d segment dataset comes back empty
             hist = t.history(period="1d")
             if hist.empty:
                 hist = t.history(period="2d")
@@ -216,7 +214,6 @@ def query_market():
     quote["cleanName"] = asset_meta.get("cleanName", asset_meta["ticker"])
     quote["assetClassDescription"] = asset_meta.get("description", "Market Asset")
     
-    # Currency Transform Logic Layer
     if CONVERT_ALL_TO_INR:
         rate = get_live_usd_inr_rate()
         if quote["currency"] == "USD":
@@ -243,7 +240,6 @@ def get_portfolio():
     rate = get_live_usd_inr_rate() if CONVERT_ALL_TO_INR else 1.0
     currency_label = "INR" if CONVERT_ALL_TO_INR else "USD"
 
-    # Convert cash balance base
     user_cash = user["cash"] * rate if CONVERT_ALL_TO_INR else user["cash"]
     
     invested_total = 0.0
@@ -253,11 +249,9 @@ def get_portfolio():
         asset_meta = interpret_asset_query(sym)
         quote = fetch_live_quote(sym, asset_meta.get("provider", "finnhub"))
 
-        # Base item cost basis is stored in USD matching execution history benchmarks
         current_price = quote["price"] if quote else holding["cost"]
         current_currency = quote["currency"] if quote else "USD"
 
-        # Bring values into alignment context
         if CONVERT_ALL_TO_INR:
             if current_currency == "USD":
                 current_price *= rate
@@ -289,20 +283,31 @@ def get_portfolio():
     starting_benchmark = STARTING_CASH * rate if CONVERT_ALL_TO_INR else STARTING_CASH
     yield_pct = ((net_val - starting_benchmark) / starting_benchmark) * 100
 
-    # Format history records matching conversion configuration layers
+    # Format history records safely to prevent crash exceptions 
     formatted_history = []
     for log in user.get("history", []):
         item = dict(log)
+        
+        # FIX: Added .get() fallbacks to prevent KeyError loops on old DB objects
+        raw_price = item.get("price", 0.0)
+        raw_sum   = item.get("sum", 0.0)
+        raw_pl    = item.get("pl", 0.0)
+        
         if CONVERT_ALL_TO_INR and item.get("currency") == "USD":
-            item["price"] *= rate
-            item["sum"] *= rate
-            item["pl"] *= rate
+            item["price"] = raw_price * rate
+            item["sum"]   = raw_sum * rate
+            item["pl"]    = raw_pl * rate
             item["currency"] = "INR"
         elif not CONVERT_ALL_TO_INR and item.get("currency") == "INR":
-            item["price"] /= rate
-            item["sum"] /= rate
-            item["pl"] /= rate
+            item["price"] = raw_price / rate
+            item["sum"]   = raw_sum / rate
+            item["pl"]    = raw_pl / rate
             item["currency"] = "USD"
+        else:
+            item["price"] = raw_price
+            item["sum"]   = raw_sum
+            item["pl"]    = raw_pl
+
         formatted_history.append(item)
 
     return jsonify({
@@ -325,7 +330,7 @@ def execute_trade():
     symbol = data.get("symbol", "").upper().strip()
     qty    = float(data.get("qty", 0))
     mode   = data.get("mode", "buy")
-    price  = float(data.get("price", 0))  # Provided directly from active front UI currency state
+    price  = float(data.get("price", 0))
 
     if qty <= 0 or price <= 0:
         return jsonify({"error": "Invalid quantity or price."}), 400
@@ -339,7 +344,6 @@ def execute_trade():
     
     rate = get_live_usd_inr_rate()
     
-    # Standardize trade price down to base system storage units (USD)
     if CONVERT_ALL_TO_INR:
         price_usd = price / rate
     else:
@@ -405,7 +409,6 @@ def execute_trade():
         }
     )
 
-    # Returns structural validation confirmation fields to generate customized front-end modals securely
     return jsonify({
         "success": True, 
         "pl": display_pl, 
@@ -425,7 +428,6 @@ def leaderboard():
     currency_label = "INR" if CONVERT_ALL_TO_INR else "USD"
     
     for user in users_col.find({}, {"password": 0, "_id": 0}):
-        # FIXED: Resolves historical holding flat-line bugs by computing live valuation metrics dynamically!
         live_invested_usd = 0.0
         for sym, holding in user.get("holdings", {}).items():
             asset_meta = interpret_asset_query(sym)
