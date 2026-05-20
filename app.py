@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
 from pymongo import MongoClient
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
@@ -450,32 +451,40 @@ def trade_execute():
 def leaderboard():
     inr_rate  = get_live_inr_rate()
     all_users = list(users_col.find({}))
-    board     = []
 
+    # Collect unique symbols and fetch in parallel (8s cap)
+    all_syms = {sym for u in all_users for sym in u.get("holdings", {}).keys()}
+    price_cache = {}
+
+    def _fetch(sym):
+        prov  = "yahoo" if is_inr_asset(sym) else "finnhub"
+        quote = fetch_live_quote(sym, prov)
+        return sym, quote
+
+    if all_syms:
+        with ThreadPoolExecutor(max_workers=12) as ex:
+            futures = {ex.submit(_fetch, s): s for s in all_syms}
+            for fut in as_completed(futures, timeout=8):
+                try:
+                    sym, q = fut.result()
+                    if q:
+                        price_cache[sym] = q
+                except Exception:
+                    pass
+
+    board = []
     for u in all_users:
         invested_usd = 0.0
         for sym, h in u.get("holdings", {}).items():
-            prov  = "yahoo" if is_inr_asset(sym) else "finnhub"
-            quote = fetch_live_quote(sym, prov)
-            if quote:
-                price_usd = quote["price"] / (inr_rate if quote["currency"] == "INR" else 1.0)
-            else:
-                price_usd = h["cost"] / (inr_rate if is_inr_asset(sym) else 1.0)
-            invested_usd += h["shares"] * price_usd
+            q       = price_cache.get(sym)
+            p_local = q["price"] if q else h["cost"]          # fallback to avg cost
+            divisor = inr_rate if (q and q["currency"] == "INR") or is_inr_asset(sym) else 1.0
+            invested_usd += h["shares"] * (p_local / divisor)
 
         net = u["cash"] + invested_usd
         ret = ((net - STARTING_CASH) / STARTING_CASH) * 100.0
-        board.append({
-            "name":     u["displayName"],
-            "handle":   u["username"],
-            "cash":     u["cash"],
-            "netValue": net,
-            "returns":  ret
-        })
+        board.append({"name": u["displayName"], "handle": u["username"],
+                      "cash": u["cash"], "netValue": net, "returns": ret})
 
     board.sort(key=lambda x: x["netValue"], reverse=True)
-    # ✅ FIX: return plain array — frontend does data.forEach(...), not data.leaderboard.forEach
     return jsonify(board)
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=5000, debug=True)
