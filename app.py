@@ -24,8 +24,8 @@ db           = mongo_client["stocksim"]
 users_col    = db["users"]
 users_col.create_index("username", unique=True)
 
-STARTING_CASH = 1_000_000.00   # USD base pool
-INR_PER_USD   = 84.0           # Fallback rate; ideally fetch live
+STARTING_CASH = 10_000.00   # USD base pool — $10,000
+INR_PER_USD   = 84.0        # Fallback rate
 
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
@@ -108,7 +108,7 @@ def fetch_live_quote(ticker: str, provider: str):
     else:  # yahoo
         try:
             t    = yf.Ticker(ticker)
-            hist = t.history(period="2d")   # 2d gives us previous close too
+            hist = t.history(period="2d")
             if hist.empty:
                 return None
             price = float(hist["Close"].iloc[-1])
@@ -200,9 +200,49 @@ def query_market():
     quote["cleanName"]             = ai.get("cleanName", ai["ticker"])
     quote["assetClassDescription"] = ai.get("description", "Market Security")
     quote["provider"]              = ai["provider"]
-    # Also return live FX rate so frontend can convert on the fly
     quote["usdInrRate"]            = get_live_inr_rate()
     return jsonify(quote)
+
+# ── Chart data proxy (bypasses CORS for Indian/Yahoo stocks) ──────────────────
+@app.route("/api/chart/yahoo")
+def chart_yahoo():
+    """Server-side proxy for Yahoo Finance chart data — no CORS issues."""
+    symbol   = request.args.get("symbol", "").strip()
+    interval = request.args.get("interval", "1d")
+    period   = request.args.get("period", "max")   # default: full history
+
+    if not symbol:
+        return jsonify({"error": "No symbol"}), 400
+
+    # Allowed intervals and periods to avoid abuse
+    safe_intervals = {"1m","2m","5m","15m","30m","60m","90m","1h","1d","5d","1wk","1mo","3mo"}
+    safe_periods   = {"1d","5d","1mo","3mo","6mo","1y","2y","5y","10y","ytd","max"}
+    if interval not in safe_intervals:
+        interval = "1d"
+    if period not in safe_periods:
+        period = "max"
+
+    url = (
+        f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
+        f"?interval={interval}&range={period}&events=div%2Csplit"
+    )
+    headers = {
+        "User-Agent": "Mozilla/5.0 (compatible; StockSim/1.0)",
+        "Accept": "application/json"
+    }
+    try:
+        resp = requests.get(url, headers=headers, timeout=15)
+        if not resp.ok:
+            # Try alternate Yahoo endpoint
+            url2 = (
+                f"https://query2.finance.yahoo.com/v8/finance/chart/{symbol}"
+                f"?interval={interval}&range={period}"
+            )
+            resp = requests.get(url2, headers=headers, timeout=15)
+        data = resp.json()
+        return jsonify(data)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────
 @app.route("/api/user/portfolio")
@@ -213,7 +253,7 @@ def get_portfolio():
     if not user:
         return jsonify({"error": "Account not found."}), 401
 
-    inr_rate = get_live_inr_rate()   # 1 USD = X INR
+    inr_rate = get_live_inr_rate()
 
     invested_usd   = 0.0
     positions_list = []
@@ -229,7 +269,6 @@ def get_portfolio():
         cost_local    = holding["shares"] * holding["cost"]
         gl_local      = mkt_val_local - cost_local
 
-        # Convert everything to USD for portfolio math
         divisor       = inr_rate if currency == "INR" else 1.0
         mkt_val_usd   = mkt_val_local / divisor
         invested_usd += mkt_val_usd
@@ -240,12 +279,12 @@ def get_portfolio():
             "symbol":        get_clean_name_mapping(sym),
             "rawToken":      sym,
             "shares":        holding["shares"],
-            "avgCost":       holding["cost"],         # in native currency
-            "currentPrice":  current_price,           # in native currency
-            "marketValue":   mkt_val_local,           # in native currency
-            "marketValueUsd": mkt_val_usd,            # always USD
-            "gainLoss":      gl_local,                # in native currency
-            "gainLossUsd":   gl_local / divisor,      # always USD
+            "avgCost":       holding["cost"],
+            "currentPrice":  current_price,
+            "marketValue":   mkt_val_local,
+            "marketValueUsd": mkt_val_usd,
+            "gainLoss":      gl_local,
+            "gainLossUsd":   gl_local / divisor,
             "gainLossPct":   gl_pct,
             "currency":      currency
         })
@@ -255,8 +294,8 @@ def get_portfolio():
 
     return jsonify({
         "cash":       user["cash"],
-        "invested":   invested_usd,          # USD
-        "netValue":   net_val_usd,            # USD
+        "invested":   invested_usd,
+        "netValue":   net_val_usd,
         "returns":    yield_pct,
         "usdInrRate": inr_rate,
         "positions":  positions_list,
@@ -272,7 +311,7 @@ def execute_trade():
     symbol = data.get("symbol", "").upper().strip()
     qty    = float(data.get("qty", 0))
     mode   = data.get("mode", "buy")
-    price  = float(data.get("price", 0))   # always in native currency of the asset
+    price  = float(data.get("price", 0))
 
     if qty <= 0 or price <= 0:
         return jsonify({"error": "Invalid parameters."}), 400
@@ -282,9 +321,8 @@ def execute_trade():
         return jsonify({"error": "Account not found."}), 401
 
     holdings   = user.get("holdings", {})
-    cash       = user["cash"]  # always USD
+    cash       = user["cash"]
 
-    # Convert trade cost to USD for cash debit/credit
     inr_rate   = get_live_inr_rate()
     divisor    = inr_rate if is_inr_asset(symbol) else 1.0
     cost_local = round(qty * price, 6)
@@ -300,7 +338,6 @@ def execute_trade():
         prev_shares = holdings[symbol]["shares"]
         prev_cost   = holdings[symbol]["cost"]
         new_shares  = prev_shares + qty
-        # avg cost stored in native currency
         holdings[symbol]["shares"] = new_shares
         holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + cost_local) / new_shares
     else:
@@ -319,9 +356,9 @@ def execute_trade():
         "symbol":      symbol,
         "cleanSymbol": clean_sym,
         "shares":      qty,
-        "price":       price,       # native currency
-        "sum":         cost_local,  # native currency
-        "sumUsd":      cost_usd,    # USD equivalent
+        "price":       price,
+        "sum":         cost_local,
+        "sumUsd":      cost_usd,
         "currency":    currency
     }
 
