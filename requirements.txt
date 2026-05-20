@@ -4,4 +4,3 @@ yfinance
 openai
 pymongo
 gunicorn
-concurrent.futures
