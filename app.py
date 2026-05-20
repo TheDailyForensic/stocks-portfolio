@@ -13,7 +13,6 @@ app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
 
 # ── API keys ──────────────────────────────────────────────────────────────────
 GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
-FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
 MONGO_URI       = os.environ.get("MONGO_URI", "mongodb://localhost:27017/")
 
 groq_client = OpenAI(
@@ -26,33 +25,40 @@ mongo_client = MongoClient(MONGO_URI)
 db           = mongo_client["stocksim"]
 users_col    = db["users"]
 
+# Ensure username is unique
 users_col.create_index("username", unique=True)
 
-STARTING_CASH_USD = 10_000.00
-USD_TO_INR_RATE  = 83.50  # Dynamic base fallback conversion rate
+# Starting cash initialized in Indian Rupees (₹10,000.00)
+STARTING_CASH = 10000.00
+
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
 def get_clean_name_mapping(ticker: str) -> str:
-    if ticker == "^IXIC":  return "NASDAQ"
     if ticker == "^NSEI":  return "NIFTY 50"
+    if ticker == "^BSESN": return "SENSEX"
     if ticker.endswith(".NS"): return ticker.replace(".NS", "")
+    if ticker.endswith(".BO"): return ticker.replace(".BO", "")
     return ticker
 
 def interpret_asset_query(user_input: str) -> dict:
+    """
+    Enforces rigid JSON output specifying tickers exclusively tracked through 
+    the Yahoo Finance routing module for Indian stock registries (NSE/BSE).
+    """
     system_instruction = """
-    You are a financial data routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
+    You are an Indian financial market routing assistant. Take user inputs, fix typos, and return a standardized JSON object.
 
     Rules:
-    1. For US stocks/ETFs, provider is 'finnhub', ticker is standard uppercase (e.g. AAPL, NVDA).
-    2. For Indian stocks on NSE, provider is 'yahoo', ticker appends '.NS' (e.g. RELIANCE.NS).
-    3. For Nasdaq Index: ticker '^IXIC', provider 'yahoo', cleanName 'NASDAQ Composite'.
-    4. For Nifty 50:     ticker '^NSEI', provider 'yahoo', cleanName 'NIFTY 50'.
+    1. For Indian Equities traded on the National Stock Exchange (NSE), ensure ticker appends '.NS' (e.g., RELIANCE.NS, TCS.NS, HDFCBANK.NS).
+    2. For Indian Equities traded on the Bombay Stock Exchange (BSE), use '.BO' if explicitly asked. Otherwise, default to '.NS'.
+    3. For the Nifty 50 Index: ticker is exactly '^NSEI' and cleanName is 'NIFTY 50'.
+    4. For the Sensex Index: ticker is exactly '^BSESN' and cleanName is 'SENSEX'.
 
-    Respond ONLY with valid JSON:
-    {"ticker":"STRING","provider":"finnhub or yahoo","cleanName":"STRING","description":"STRING","error":false}
+    Respond ONLY with valid JSON matching this schema:
+    {"ticker":"STRING","provider":"yahoo","cleanName":"STRING","description":"STRING","error":false}
     """
     try:
         resp = groq_client.chat.completions.create(
@@ -65,52 +71,38 @@ def interpret_asset_query(user_input: str) -> dict:
         )
         return json.loads(resp.choices[0].message.content)
     except Exception:
-        return {"ticker": "", "provider": "", "cleanName": "Unknown",
-                "description": "Asset", "error": True}
+        # Fallback parsing parameters if LLM fails
+        cleaned = user_input.strip().upper().replace(" ", "")
+        if not cleaned.endswith(".NS") and not cleaned.startswith("^"):
+            cleaned += ".NS"
+        return {"ticker": cleaned, "provider": "yahoo", "cleanName": cleaned.replace(".NS",""),
+                "description": "Indian Equity Asset", "error": False}
 
-def fetch_live_quote(ticker: str, provider: str):
-    if provider == "finnhub":
-        url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
-        try:
-            r = requests.get(url, timeout=8).json()
-            if not r.get("c"): return None
-            return {
-                "symbol": ticker,
-                "price":  r["c"],
-                "change": round(r.get("d",  0), 4),
-                "pct":    round(r.get("dp", 0), 4),
-                "low":    r.get("l", r["c"]),
-                "high":   r.get("h", r["c"]),
-                "prev":   r.get("pc", r["c"]),
-                "currency": "USD"
-            }
-        except Exception:
+def fetch_live_quote(ticker: str):
+    """Fetches high-precision equity metrics through Yahoo Finance."""
+    try:
+        t = yf.Ticker(ticker)
+        hist = t.history(period="1d")
+        if hist.empty:
             return None
-    else:
-        try:
-            t = yf.Ticker(ticker)
-            hist = t.history(period="1d")
-            if hist.empty:
-                return None
-                
-            price = float(hist['Close'].iloc[-1])
-            low = float(hist['Low'].iloc[-1]) if 'Low' in hist else price
-            high = float(hist['High'].iloc[-1]) if 'High' in hist else price
-            prev = float(hist['Open'].iloc[-1]) if 'Open' in hist else price
             
-            currency = "INR" if (".NS" in ticker or "NSEI" in ticker) else "USD"
-            return {
-                "symbol": ticker, 
-                "price": price,
-                "change": round(price - prev, 4), 
-                "pct": round(((price - prev) / prev) * 100, 4) if prev else 0,
-                "low": low, 
-                "high": high, 
-                "prev": prev,
-                "currency": currency
-            }
-        except Exception:
-            return None
+        price = float(hist['Close'].iloc[-1])
+        low = float(hist['Low'].iloc[-1]) if 'Low' in hist else price
+        high = float(hist['High'].iloc[-1]) if 'High' in hist else price
+        prev = float(hist['Open'].iloc[-1]) if 'Open' in hist else price
+        
+        return {
+            "symbol": ticker, 
+            "price": price,
+            "change": round(price - prev, 4), 
+            "pct": round(((price - prev) / prev) * 100, 4) if prev else 0,
+            "low": low, 
+            "high": high, 
+            "prev": prev,
+            "currency": "INR"
+        }
+    except Exception:
+        return None
 
 def get_user(username: str):
     return users_col.find_one({"username": username})
@@ -145,7 +137,7 @@ def register():
         "username":    username,
         "displayName": display,
         "password":    password,
-        "cash":        STARTING_CASH_USD,  # Balances kept in USD internally
+        "cash":        STARTING_CASH,
         "holdings":    {},
         "history":     [],
         "created_at":  now_str()
@@ -188,13 +180,12 @@ def query_market():
     if ai.get("error") or not ai.get("ticker"):
         return jsonify({"error": "Could not identify that stock or index."}), 404
 
-    quote = fetch_live_quote(ai["ticker"], ai["provider"])
+    quote = fetch_live_quote(ai["ticker"])
     if not quote:
-        return jsonify({"error": "Failed to fetch live price. Try again."}), 404
+        return jsonify({"error": "Failed to fetch live price from Indian markets. Try again."}), 404
 
-    quote["cleanName"]           = ai.get("cleanName", ai["ticker"])
-    quote["assetClassDescription"] = ai.get("description", "Market Asset")
-    quote["usdToInrRate"]        = USD_TO_INR_RATE
+    quote["cleanName"]             = ai.get("cleanName", ai["ticker"])
+    quote["assetClassDescription"] = ai.get("description", "Indian Equity Security")
     return jsonify(quote)
 
 
@@ -208,51 +199,42 @@ def get_portfolio():
     if not user:
         return jsonify({"error": "Account not found."}), 401
 
-    invested_usd   = 0.0
+    invested       = 0.0
     positions_list = []
 
+    # Iterate cleanly using database tokens to completely bypass recursive LLM lookup loops
     for sym, holding in user.get("holdings", {}).items():
-        ai    = interpret_asset_query(sym)
-        quote = fetch_live_quote(sym, ai.get("provider", "finnhub"))
+        quote = fetch_live_quote(sym)
 
-        # Raw data matching logic in USD standard
         current_price = quote["price"] if quote else holding["cost"]
-        
-        # If the asset comes from Yahoo in INR (e.g. Indian Stocks), convert tracking elements to USD base internally
-        if quote and quote["currency"] == "INR":
-            current_price_usd = current_price / USD_TO_INR_RATE
-        else:
-            current_price_usd = current_price
+        mkt_val       = holding["shares"] * current_price
+        cost_basis    = holding["shares"] * holding["cost"]
+        gl            = mkt_val - cost_basis
+        gl_pct        = ((current_price - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
 
-        mkt_val_usd   = holding["shares"] * current_price_usd
-        cost_basis_usd = holding["shares"] * holding["cost"]
-        gl_usd         = mkt_val_usd - cost_basis_usd
-        gl_pct        = ((current_price_usd - holding["cost"]) / holding["cost"]) * 100 if holding["cost"] else 0
-
-        invested_usd += mkt_val_usd
+        invested += mkt_val
         positions_list.append({
-            "symbol":       ai.get("cleanName", sym),
+            "symbol":       get_clean_name_mapping(sym),
             "rawToken":     sym,
             "shares":       holding["shares"],
-            "avgCostUsd":   holding["cost"],
-            "currentPriceNative": current_price,
-            "nativeCurrency": quote["currency"] if quote else "USD",
-            "marketValueUsd":  mkt_val_usd,
-            "gainLossUsd":     gl_usd,
-            "gainLossPct":  gl_pct
+            "avgCost":      holding["cost"],
+            "currentPrice": current_price,
+            "marketValue":  mkt_val,
+            "gainLoss":     gl,
+            "gainLossPct":  gl_pct,
+            "currency":     "INR"
         })
 
-    net_val_usd = user["cash"] + invested_usd
-    yield_pct  = ((net_val_usd - STARTING_CASH_USD) / STARTING_CASH_USD) * 100
+    net_val    = user["cash"] + invested
+    yield_pct  = ((net_val - STARTING_CASH) / STARTING_CASH) * 100
 
     return jsonify({
-        "cashUsd":      user["cash"],
-        "investedUsd":  invested_usd,
-        "netValueUsd":  net_val_usd,
+        "cash":      user["cash"],
+        "invested":  invested,
+        "netValue":  net_val,
         "returns":   yield_pct,
         "positions": positions_list,
-        "history":   user.get("history", []),
-        "usdToInrRate": USD_TO_INR_RATE
+        "history":   user.get("history", [])
     })
 
 
@@ -266,47 +248,44 @@ def execute_trade():
     symbol = data.get("symbol", "").upper().strip()
     qty    = float(data.get("qty", 0))
     mode   = data.get("mode", "buy")
-    price_native = float(data.get("price", 0)) # Sent over in native currency (USD or INR)
+    price  = float(data.get("price", 0))
 
-    if qty <= 0 or price_native <= 0:
+    if qty <= 0 or price <= 0:
         return jsonify({"error": "Invalid quantity or price."}), 400
 
     user = get_user(session["user"])
     if not user:
         return jsonify({"error": "Account not found."}), 401
 
-    is_indian = (".NS" in symbol or "NSEI" in symbol)
-    price_usd = price_native / USD_TO_INR_RATE if is_indian else price_native
-
     holdings   = user.get("holdings", {})
-    cash_usd   = user["cash"]
-    total_cost_usd = round(qty * price_usd, 6)
+    cash       = user["cash"]
+    total_cost = round(qty * price, 6)
     clean_sym  = get_clean_name_mapping(symbol)
     timestamp  = now_str()
-    pl_usd     = 0.0
+    pl         = 0.0
 
     if mode == "buy":
-        if cash_usd < total_cost_usd:
-            return jsonify({"error": "Insufficient funds for this order."}), 400
+        if cash < total_cost:
+            return jsonify({"error": f"Insufficient funds. Order requires ₹{total_cost:,.2f}."}), 400
 
-        cash_usd -= total_cost_usd
+        cash -= total_cost
         if symbol not in holdings:
             holdings[symbol] = {"shares": 0.0, "cost": 0.0}
 
         prev_shares = holdings[symbol]["shares"]
-        prev_cost_usd = holdings[symbol]["cost"]
+        prev_cost   = holdings[symbol]["cost"]
         new_shares  = prev_shares + qty
         holdings[symbol]["shares"] = new_shares
-        holdings[symbol]["cost"]   = ((prev_shares * prev_cost_usd) + total_cost_usd) / new_shares
+        holdings[symbol]["cost"]   = ((prev_shares * prev_cost) + total_cost) / new_shares
 
     else:  # sell
         owned = holdings.get(symbol, {}).get("shares", 0)
         if owned < qty - 1e-9:
             return jsonify({"error": f"You only own {owned:.4f} shares of {clean_sym}."}), 400
 
-        avg_cost_usd = holdings[symbol]["cost"]
-        pl_usd       = round((price_usd - avg_cost_usd) * qty, 4)
-        cash_usd    += total_cost_usd
+        avg_cost   = holdings[symbol]["cost"]
+        pl         = round((price - avg_cost) * qty, 4)
+        cash      += total_cost
         holdings[symbol]["shares"] -= qty
 
         if holdings[symbol]["shares"] <= 1e-9:
@@ -318,22 +297,21 @@ def execute_trade():
         "symbol":      symbol,
         "cleanSymbol": clean_sym,
         "shares":      qty,
-        "priceNative": price_native,
-        "priceUsd":    price_usd,
-        "sumUsd":      total_cost_usd,
-        "plUsd":       pl_usd,
-        "currency":    "INR" if is_indian else "USD"
+        "price":       price,
+        "sum":         total_cost,
+        "pl":          pl,
+        "currency":    "INR"
     }
 
     users_col.update_one(
         {"username": session["user"]},
         {
-            "$set":   {"cash": round(cash_usd, 6), "holdings": holdings},
+            "$set":   {"cash": round(cash, 6), "holdings": holdings},
             "$push":  {"history": {"$each": [history_entry], "$position": 0}}
         }
     )
 
-    return jsonify({"success": True, "plUsd": pl_usd, "newCashUsd": round(cash_usd, 6)})
+    return jsonify({"success": True, "pl": pl, "newCash": round(cash, 2)})
 
 
 # ── Leaderboard ───────────────────────────────────────────────────────────────
@@ -341,18 +319,20 @@ def execute_trade():
 def leaderboard():
     board = []
     for user in users_col.find({}, {"password": 0, "_id": 0}):
-        invested_usd = 0.0
-        for sym, h in user.get("holdings", {}).items():
-            invested_usd += h["shares"] * h["cost"]
+        invested = 0.0
+        for sym, holding in user.get("holdings", {}).items():
+            quote = fetch_live_quote(sym)
+            c_price = quote["price"] if quote else holding["cost"]
+            invested += holding["shares"] * c_price
             
-        net_value_usd = user["cash"] + invested_usd
-        returns_pct   = ((net_value_usd - STARTING_CASH_USD) / STARTING_CASH_USD) * 100
-        trade_count   = len(user.get("history", []))
+        net_value   = user["cash"] + invested
+        returns_pct = ((net_value - STARTING_CASH) / STARTING_CASH) * 100
+        trade_count = len(user.get("history", []))
         board.append({
             "name":       user["displayName"],
             "handle":     user["username"],
-            "cashUsd":    user["cash"],
-            "netValueUsd": net_value_usd,
+            "cash":       user["cash"],
+            "netValue":   net_value,
             "returns":    returns_pct,
             "tradeCount": trade_count
         })
