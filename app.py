@@ -436,11 +436,20 @@ def trade_execute():
         "sumUsd":      cost_usd,
         "currency":    "INR" if is_inr_asset(symbol) else "USD"
     }
-
+    # Snapshot for leaderboard — updates on every trade, no live API calls needed
+snap_invested = 0.0
+for s, h in holdings.items():
+    snap_invested += h["shares"] * h["cost"] / (inr_rate if is_inr_asset(s) else 1.0)
+snap_net = round(cash + snap_invested, 2)
+snap_ret = round(((snap_net - STARTING_CASH) / STARTING_CASH) * 100.0, 4)
     users_col.update_one(
         {"username": session["user"]},
         {
-            "$set":  {"cash": round(cash, 6), "holdings": holdings},
+            "$set": {
+    "cash": round(cash, 6),
+    "holdings": holdings,
+    "snapshot": {"net": snap_net, "ret": snap_ret}   # ← add this line
+},
             "$push": {"history": {"$each": [history_entry], "$position": 0}}
         }
     )
@@ -449,42 +458,15 @@ def trade_execute():
 # ── Leaderboard ───────────────────────────────────────────────────────────────
 @app.route("/api/leaderboard")
 def leaderboard():
-    inr_rate  = get_live_inr_rate()
     all_users = list(users_col.find({}))
-
-    # Collect unique symbols and fetch in parallel (8s cap)
-    all_syms = {sym for u in all_users for sym in u.get("holdings", {}).keys()}
-    price_cache = {}
-
-    def _fetch(sym):
-        prov  = "yahoo" if is_inr_asset(sym) else "finnhub"
-        quote = fetch_live_quote(sym, prov)
-        return sym, quote
-
-    if all_syms:
-        with ThreadPoolExecutor(max_workers=12) as ex:
-            futures = {ex.submit(_fetch, s): s for s in all_syms}
-            for fut in as_completed(futures, timeout=8):
-                try:
-                    sym, q = fut.result()
-                    if q:
-                        price_cache[sym] = q
-                except Exception:
-                    pass
-
     board = []
     for u in all_users:
-        invested_usd = 0.0
-        for sym, h in u.get("holdings", {}).items():
-            q       = price_cache.get(sym)
-            p_local = q["price"] if q else h["cost"]          # fallback to avg cost
-            divisor = inr_rate if (q and q["currency"] == "INR") or is_inr_asset(sym) else 1.0
-            invested_usd += h["shares"] * (p_local / divisor)
-
-        net = u["cash"] + invested_usd
-        ret = ((net - STARTING_CASH) / STARTING_CASH) * 100.0
-        board.append({"name": u["displayName"], "handle": u["username"],
-                      "cash": u["cash"], "netValue": net, "returns": ret})
-
+        snap = u.get("snapshot", {})
+        net  = snap.get("net", u["cash"])
+        ret  = snap.get("ret", ((u["cash"] - STARTING_CASH) / STARTING_CASH) * 100.0)
+        board.append({
+            "name": u["displayName"], "handle": u["username"],
+            "cash": u["cash"], "netValue": net, "returns": ret
+        })
     board.sort(key=lambda x: x["netValue"], reverse=True)
     return jsonify(board)
