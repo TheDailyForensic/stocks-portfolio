@@ -63,7 +63,7 @@ Rules:
 1. US stocks/ETFs (TSLA, AAPL, NVDA, MSFT, AMZN, etc.): provider "finnhub", currency "USD".
 2. Indian stocks on NSE: provider "yahoo", currency "INR", ticker appends ".NS" (e.g. RELIANCE.NS, TCS.NS, INFY.NS).
 3. Nasdaq Composite index: ticker "^IXIC", provider "yahoo", currency "USD".
-4. Nifty 50 index:        ticker "^NSEI", provider "yahoo", currency "INR".
+4. Nifty 50 index:         ticker "^NSEI", provider "yahoo", currency "INR".
 5. BSE Sensex:            ticker "^BSESN", provider "yahoo", currency "INR".
 6. Dow Jones:             ticker "^DJI",  provider "yahoo", currency "USD".
 
@@ -174,7 +174,6 @@ def register():
     }
     users_col.insert_one(user_doc)
     session["user"] = username
-    # ✅ FIX: return flat user object so frontend activeUser.cash / .displayName work
     return jsonify(safe_user_view(user_doc))
 
 @app.route("/api/auth/login", methods=["POST"])
@@ -188,7 +187,6 @@ def login():
         return jsonify({"error": "Invalid username or password"}), 401
 
     session["user"] = username
-    # ✅ FIX: return flat user object
     return jsonify(safe_user_view(u))
 
 @app.route("/api/auth/logout", methods=["POST"])
@@ -204,8 +202,7 @@ def get_session():
             return jsonify({"authenticated": True, "user": safe_user_view(u)})
     return jsonify({"authenticated": False})
 
-# ── Market Query  (GET /api/market/query?query=...) ───────────────────────────
-# ✅ FIX: frontend calls GET /api/market/query — this route was missing entirely
+# ── Market Query ──────────────────────────────────────────────────────────────
 @app.route("/api/market/query")
 def market_query():
     if "user" not in session:
@@ -228,19 +225,18 @@ def market_query():
 
     inr_rate = get_live_inr_rate()
 
-    # Return shape the frontend expects on tradeAsset
     return jsonify({
-        "symbol":               ticker,
-        "cleanName":            routing.get("cleanName", get_clean_name_mapping(ticker)),
+        "symbol":                ticker,
+        "cleanName":             routing.get("cleanName", get_clean_name_mapping(ticker)),
         "assetClassDescription": routing.get("description", ""),
-        "price":                quote["price"],
-        "change":               quote["change"],
-        "pct":                  quote["pct"],
-        "high":                 quote["high"],
-        "low":                  quote["low"],
-        "currency":             quote["currency"],
-        "provider":             provider,
-        "usdInrRate":           inr_rate
+        "price":                 quote["price"],
+        "change":                quote["change"],
+        "pct":                   quote["pct"],
+        "high":                  quote["high"],
+        "low":                   quote["low"],
+        "currency":              quote["currency"],
+        "provider":              provider,
+        "usdInrRate":            inr_rate
     })
 
 # ── Chart Proxy ───────────────────────────────────────────────────────────────
@@ -309,7 +305,6 @@ def chart_yahoo():
         return jsonify({"error": str(e)}), 500
 
 # ── Portfolio ─────────────────────────────────────────────────────────────────
-# ✅ FIX: frontend calls GET /api/user/portfolio — renamed from /api/portfolio/sync
 @app.route("/api/user/portfolio")
 def user_portfolio():
     if "user" not in session:
@@ -324,8 +319,8 @@ def user_portfolio():
     history  = u.get("history", [])
     cash     = u["cash"]
 
-    positions      = []
-    invested_usd   = 0.0
+    positions    = []
+    invested_usd = 0.0
 
     for sym, h in holdings.items():
         prov  = "yahoo" if is_inr_asset(sym) else "finnhub"
@@ -343,8 +338,8 @@ def user_portfolio():
 
         divisor = inr_rate if asset_currency == "INR" else 1.0
 
-        avg_cost_usd    = avg_cost_local / divisor
-        curr_price_usd  = curr_price_local / divisor
+        avg_cost_usd     = avg_cost_local / divisor
+        curr_price_usd   = curr_price_local / divisor
         market_value_usd = shares * curr_price_usd
         cost_basis_usd   = shares * avg_cost_usd
         gain_loss_usd    = market_value_usd - cost_basis_usd
@@ -366,7 +361,6 @@ def user_portfolio():
     net_value_usd   = cash + invested_usd
     total_returns   = ((net_value_usd - STARTING_CASH) / STARTING_CASH) * 100.0
 
-    # ✅ FIX: include usdInrRate so frontend currency converter stays accurate
     return jsonify({
         "cash":       cash,
         "invested":   invested_usd,
@@ -432,24 +426,26 @@ def trade_execute():
         "shares":      qty,
         "price":       price,
         "sum":         cost_local,
-        # ✅ FIX: include sumUsd so history table USD column renders correctly
         "sumUsd":      cost_usd,
         "currency":    "INR" if is_inr_asset(symbol) else "USD"
     }
+    
     # Snapshot for leaderboard — updates on every trade, no live API calls needed
-snap_invested = 0.0
-for s, h in holdings.items():
-    snap_invested += h["shares"] * h["cost"] / (inr_rate if is_inr_asset(s) else 1.0)
-snap_net = round(cash + snap_invested, 2)
-snap_ret = round(((snap_net - STARTING_CASH) / STARTING_CASH) * 100.0, 4)
+    snap_invested = 0.0
+    for s, h in holdings.items():
+        snap_invested += h["shares"] * h["cost"] / (inr_rate if is_inr_asset(s) else 1.0)
+    
+    snap_net = round(cash + snap_invested, 2)
+    snap_ret = round(((snap_net - STARTING_CASH) / STARTING_CASH) * 100.0, 4)
+    
     users_col.update_one(
         {"username": session["user"]},
         {
             "$set": {
-    "cash": round(cash, 6),
-    "holdings": holdings,
-    "snapshot": {"net": snap_net, "ret": snap_ret}   # ← add this line
-},
+                "cash": round(cash, 6),
+                "holdings": holdings,
+                "snapshot": {"net": snap_net, "ret": snap_ret}
+            },
             "$push": {"history": {"$each": [history_entry], "$position": 0}}
         }
     )
