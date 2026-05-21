@@ -69,7 +69,8 @@
     .auth-tab.active{color:var(--ac);background:var(--bg-card);box-shadow:0 2px 8px rgba(0,0,0,.2)}
 
     /* SIDEBAR */
-    .sidebar{width:var(--sidebar-w);background:var(--bg-card);border-right:1px solid var(--b);display:flex;flex-direction:column;padding:1.75rem 1.25rem;position:fixed;top:0;bottom:34px;left:0;z-index:100;overflow-y:auto}
+    .sidebar{width:var(--sidebar-w);background:var(--bg-card);border-right:1px solid var(--b);display:flex;flex-direction:column;padding:1.75rem 1.25rem;position:fixed;top:0;bottom:34px;left:0;z-index:100;overflow-y:auto;transition:transform .25s cubic-bezier(.4,0,.2,1)}
+    .sidebar.sb-off{transform:translateX(calc(-1 * var(--sidebar-w)))}
     .sb-brand{font-family:var(--font-display);font-size:2rem;letter-spacing:.05em;margin-bottom:.25rem;text-align:center}
     .sb-brand span{color:var(--ac)}
     .sb-sub{font-family:var(--font-mono);font-size:.65rem;color:var(--td);text-align:center;margin-bottom:1.5rem;letter-spacing:.08em}
@@ -84,7 +85,7 @@
     .btn-logout:hover{background:var(--red);color:#000;border-color:var(--red)}
 
     /* WORKSPACE */
-    .workspace{flex-grow:1;margin-left:var(--sidebar-w);padding:2rem 2rem 5rem;width:calc(100% - var(--sidebar-w));min-height:100vh}
+    .workspace{flex-grow:1;margin-left:var(--sidebar-w);padding:2rem 2rem 5rem;min-height:100vh;overflow-x:hidden;transition:margin-left .25s cubic-bezier(.4,0,.2,1),width .25s cubic-bezier(.4,0,.2,1)}
     .view-hdr{margin-bottom:1.75rem;border-bottom:1px solid var(--b);padding-bottom:1rem;display:flex;justify-content:space-between;align-items:flex-end;gap:1rem;flex-wrap:wrap}
     .view-title{font-family:var(--font-display);font-size:2.2rem;text-transform:uppercase;letter-spacing:.03em;line-height:1.1}
     .view-sub{color:var(--t2);font-size:.85rem;margin-top:.15rem}
@@ -155,18 +156,33 @@
 
     /* TICKER TAPE */
     .tape-wrap{position:fixed;bottom:0;left:0;right:0;z-index:500;background:var(--bg-up);border-top:1px solid var(--b);height:34px;overflow:hidden}
-    .tape{display:flex;align-items:center;height:100%;white-space:nowrap;animation:scroll 40s linear infinite;font-family:var(--font-mono);font-size:.7rem;color:var(--t2)}
+    .tape{display:flex;align-items:center;height:100%;white-space:nowrap;animation:scroll 60s linear infinite;font-family:var(--font-mono);font-size:.7rem;color:var(--t2)}
     .tape:hover{animation-play-state:paused}
-    @keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+    @keyframes scroll{from{transform:translateX(0)}to{transform:translateX(-33.333%)}}
     .ti{padding:0 1.5rem;display:inline-flex;align-items:center;gap:.4rem;border-right:1px solid var(--b);height:100%}
-    .ti-s{color:var(--ac);font-weight:700}.ti-p{font-weight:bold}
+    .ti-s{color:var(--ac);font-weight:700}
+    .ti-price{font-size:.67rem;font-weight:600;margin-left:.2rem}
+
+    /* market status bar */
+    .mkt-bar{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;margin-bottom:1.5rem;background:var(--bg-card);border:1px solid var(--b);border-radius:var(--r-md);font-family:var(--font-mono);font-size:.72rem;flex-wrap:wrap}
+    .mkt-tag{padding:.12rem .45rem;border-radius:var(--r-sm);font-size:.62rem;font-weight:700;letter-spacing:.04em}
+    .mkt-tag.open{background:var(--acg);color:var(--ac);border:1px solid rgba(0,255,136,.15)}
+    .mkt-tag.closed{background:var(--red-glow);color:var(--red-bright);border:1px solid rgba(255,56,96,.2)}
+    .mkt-tag.pre{background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
+
+    /* sidebar toggle buttons */
+    .sb-btn{position:fixed;top:.9rem;z-index:300;background:var(--bg-card);border:1px solid var(--b);border-radius:var(--r-md);color:var(--t2);cursor:pointer;font-size:.85rem;padding:.4rem .6rem;line-height:1;transition:all var(--ease)}
+    .sb-btn:hover{color:var(--ac);border-color:var(--ac)}
+    #sb-open{left:.9rem}
+    #sb-close{left:calc(var(--sidebar-w) - 2.6rem)}
 
     /* MOBILE */
     @media(max-width:1100px){.trade-grid{grid-template-columns:1fr}.two-col{grid-template-columns:1fr}}
     @media(max-width:768px){
       html{font-size:14px}
       .app-wrap{flex-direction:column}
-      .sidebar{width:100%;height:auto;position:sticky;top:0;border-right:none;border-bottom:1px solid var(--b);padding:.85rem 1rem;bottom:auto;z-index:200}
+      .sidebar{width:100%;height:auto;position:sticky;top:0;border-right:none;border-bottom:1px solid var(--b);padding:.85rem 1rem;bottom:auto;z-index:200;transform:none!important}
+      .sidebar.sb-off{transform:translateY(-100%)!important}
       .sb-brand{font-size:1.5rem;margin-bottom:.1rem;text-align:left;display:inline}
       .sb-sub{text-align:left;margin-bottom:.6rem;display:block}
       .sb-user{padding:.55rem .7rem;margin-bottom:.6rem}
@@ -176,7 +192,8 @@
       .nav-btn:hover{padding-left:.4rem}
       .nav-btn.active{border-left:none;border-top:2px solid var(--ac);padding-left:.4rem;border-radius:var(--r-md)}
       .btn-logout{margin-top:.4rem;padding:.55rem;font-size:.75rem}
-      .workspace{margin-left:0;width:100%;padding:1rem 1rem 5rem}
+      .workspace{margin-left:0!important;width:100%!important;padding:1rem 1rem 5rem}
+      .sb-btn{display:none}
       .view-title{font-size:1.8rem}
       .chart-wrap{height:320px}
       .kpi-strip{grid-template-columns:1fr 1fr;gap:.6rem}
@@ -190,36 +207,6 @@
       .brand-title{font-size:2.5rem}
       .kpi-strip{grid-template-columns:1fr 1fr}
     }
-
-/* market status bar */
-.mkt-bar{display:flex;align-items:center;gap:.6rem;padding:.55rem 1rem;margin-bottom:1.5rem;background:var(--bg-card);border:1px solid var(--b);border-radius:var(--r-md);font-family:var(--font-mono);font-size:.72rem;flex-wrap:wrap}
-.mkt-tag{padding:.12rem .45rem;border-radius:var(--r-sm);font-size:.62rem;font-weight:700;letter-spacing:.04em}
-.mkt-tag.open{background:var(--acg);color:var(--ac);border:1px solid rgba(0,255,136,.15)}
-.mkt-tag.closed{background:var(--red-glow);color:var(--red-bright);border:1px solid rgba(255,56,96,.2)}
-.mkt-tag.pre{background:rgba(251,191,36,.08);color:#fbbf24;border:1px solid rgba(251,191,36,.2)}
-    /* sidebar collapse */
-.sidebar{transition:transform .25s cubic-bezier(.4,0,.2,1)}
-.sidebar.sb-off{transform:translateX(calc(-1 * var(--sidebar-w)))}
-.workspace{transition:margin-left .25s cubic-bezier(.4,0,.2,1)}
-.workspace.sb-off{margin-left:0!important}
-
-/* toggle buttons */
-.sb-btn{
-  position:fixed;top:.9rem;z-index:300;
-  background:var(--bg-card);border:1px solid var(--b);
-  border-radius:var(--r-md);color:var(--t2);cursor:pointer;
-  font-size:.85rem;padding:.4rem .6rem;line-height:1;
-  transition:all var(--ease);
-}
-.sb-btn:hover{color:var(--ac);border-color:var(--ac)}
-#sb-open{left:.9rem}
-#sb-close{left:calc(var(--sidebar-w) - 2.6rem)}
-
-@media(max-width:768px){
-  .sb-btn{display:none}
-  .sidebar.sb-off{transform:translateY(-100%)}
-  .workspace.sb-off{margin-left:0!important;margin-top:0}
-}
   </style>
 </head>
 <body data-theme="dark">
@@ -300,14 +287,15 @@
 
   <main class="workspace">
     <div class="mkt-bar" id="mkt-bar">
-  <span id="mkt-dot" style="font-size:.6rem;color:var(--td)">●</span>
-  <span id="mkt-nse">NSE / BSE</span>
-  <span class="mkt-tag closed" id="mkt-nse-tag">—</span>
-  <span style="color:var(--td)">·</span>
-  <span id="mkt-us">NYSE / NASDAQ</span>
-  <span class="mkt-tag closed" id="mkt-us-tag">—</span>
-  <span style="margin-left:auto;color:var(--td);font-size:.65rem" id="mkt-time"></span>
-</div>
+      <span id="mkt-dot" style="font-size:.6rem;color:var(--td)">●</span>
+      <span id="mkt-nse">NSE/BSE</span>
+      <span class="mkt-tag closed" id="mkt-nse-tag">—</span>
+      <span style="color:var(--td)">·</span>
+      <span id="mkt-us">NYSE/NASDAQ</span>
+      <span class="mkt-tag closed" id="mkt-us-tag">—</span>
+      <span style="margin-left:auto;color:var(--td);font-size:.65rem" id="mkt-time"></span>
+    </div>
+
     <!-- PORTFOLIO -->
     <section id="v-port" class="vp">
       <div class="view-hdr">
@@ -338,20 +326,23 @@
       <div class="view-hdr">
         <div>
           <h1 class="view-title">Trade</h1>
-          <p class="view-sub">Search any stock — US, India, or global indices</p>
+          <p class="view-sub">Search any stock — US, India, crypto, commodities, international</p>
         </div>
         <div style="font-family:var(--font-mono);font-size:.88rem;font-weight:700;background:var(--bg-card);border:1px solid var(--b);padding:.55rem 1rem;border-radius:var(--r-md);white-space:nowrap" id="cash-badge">Cash: $0.00</div>
       </div>
       <div class="card">
         <div class="filter-strip">
           <button class="filter-btn active" data-f="all">All</button>
-          <button class="filter-btn" data-f="india">India NSE/BSE</button>
-          <button class="filter-btn" data-f="us">US Tech</button>
+          <button class="filter-btn" data-f="india">India</button>
+          <button class="filter-btn" data-f="us">US</button>
           <button class="filter-btn" data-f="index">Indices</button>
+          <button class="filter-btn" data-f="crypto">Crypto</button>
+          <button class="filter-btn" data-f="commodity">Commodities</button>
+          <button class="filter-btn" data-f="intl">International</button>
         </div>
         <div class="trending-grid" id="pills"></div>
         <div class="form-group">
-          <label class="form-label">Search — TSLA, Reliance, INFY.NS, Nifty 50…</label>
+          <label class="form-label">Search — TSLA, Reliance, BTC, Gold, SAP.DE, 7203.T…</label>
           <div style="display:flex;gap:.5rem">
             <input class="form-input" id="search-in" type="text" placeholder="Ticker or company name…" autocomplete="off"/>
             <button class="btn-primary" id="btn-search" style="width:auto;padding:0 1.25rem;flex-shrink:0">Search</button>
@@ -377,11 +368,9 @@
           <!-- CHART -->
           <div class="card" style="padding:1rem">
             <h3 class="card-title" style="margin-bottom:.65rem">Chart</h3>
-            <!-- TradingView widget (US/global) -->
             <div id="tv-wrap" class="chart-wrap hidden" style="padding:0">
               <div id="tv-container" style="width:100%;height:100%"></div>
             </div>
-            <!-- Native chart (India via Yahoo) -->
             <div id="native-wrap" class="chart-wrap hidden">
               <div class="chart-ctrls" id="cctrls">
                 <button class="active" id="rb-max"  onclick="App.setRange('max','1wk','rb-max')">MAX</button>
@@ -497,7 +486,6 @@
   <div class="tape-wrap"><div class="tape" id="tape"></div></div>
 </div>
 
-<!-- Load TradingView + Lightweight Charts -->
 <script src="https://s3.tradingview.com/tv.js"></script>
 <script>
 (function(){
@@ -557,45 +545,67 @@ const App={
     u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   ],
 
+  // ── Sidebar ───────────────────────────────────────────────────────────────
   toggleSb(){
     const sb=document.querySelector('.sidebar');
     const ws=document.querySelector('.workspace');
     const off=sb.classList.toggle('sb-off');
-    ws.classList.toggle('sb-off',off);
+    if(off){
+      ws.style.marginLeft='0px';
+      ws.style.width='100%';
+    } else {
+      ws.style.marginLeft='var(--sidebar-w)';
+      ws.style.width='calc(100% - var(--sidebar-w))';
+    }
     document.getElementById('sb-open').classList.toggle('hidden',!off);
     document.getElementById('sb-close').classList.toggle('hidden',off);
     try{localStorage.setItem('sb-state',off?'closed':'open');}catch(e){}
+    setTimeout(()=>{
+      if(this.chartInst){
+        const cm=document.getElementById('cm'),cv=document.getElementById('cv');
+        if(cm) this.chartInst.applyOptions({width:cm.offsetWidth,height:cm.offsetHeight||340});
+        if(cv&&this.volInst) this.volInst.applyOptions({width:cv.offsetWidth});
+      }
+    },280);
   },
   initSb(){
     try{if(localStorage.getItem('sb-state')==='closed')this.toggleSb();}catch(e){}
   },
 
-async yahooFetch(symbol, interval, range, extSig=null){
+  // ── Yahoo fetch ───────────────────────────────────────────────────────────
+  async yahooFetch(symbol,interval,range,extSig=null){
     const base=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
     for(let i=0;i<this.PROXIES.length;i++){
-        if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
-        try{
-            const ctrl=new AbortController();
-            const tid=setTimeout(()=>ctrl.abort(),13000);
-            if(extSig) extSig.addEventListener('abort',()=>{clearTimeout(tid);ctrl.abort()},{once:true});
-            const res=await fetch(this.PROXIES[i](base),{signal:ctrl.signal});
-            clearTimeout(tid);
-            if(!res.ok) continue;
-            return await res.json();
-        }catch(e){
-            if(e.name==='AbortError'&&extSig?.aborted) throw e;
-            if(i===this.PROXIES.length-1) throw e;
-        }
+      if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
+      try{
+        const ctrl=new AbortController();
+        const tid=setTimeout(()=>ctrl.abort(),13000);
+        if(extSig) extSig.addEventListener('abort',()=>{clearTimeout(tid);ctrl.abort()},{once:true});
+        const res=await fetch(this.PROXIES[i](base),{signal:ctrl.signal});
+        clearTimeout(tid);
+        if(!res.ok) continue;
+        return await res.json();
+      }catch(e){
+        if(e.name==='AbortError'&&extSig?.aborted) throw e;
+        if(i===this.PROXIES.length-1) throw e;
+      }
     }
-},
-
-  looksIndian(q){
-    const u=q.trim().toUpperCase();
-    return u.endsWith('.NS')||u.endsWith('.BO')||
-           u.startsWith('^NSE')||u.startsWith('^BSE')||
-           u==='^NSEI'||u==='^BSESN'||u==='^NSEBANK';
   },
 
+  // ── Asset helpers ─────────────────────────────────────────────────────────
+  isYahooAsset(sym){
+    const u=sym.trim().toUpperCase();
+    return u.endsWith('.NS')||u.endsWith('.BO')||u.endsWith('.L')||u.endsWith('.DE')||
+           u.endsWith('.T')||u.endsWith('.HK')||u.endsWith('.AX')||u.endsWith('.TO')||
+           u.endsWith('.PA')||u.endsWith('.MI')||u.endsWith('-USD')||
+           u.endsWith('=F')||u.endsWith('=X')||u.startsWith('^');
+  },
+  isIndianAsset(sym){
+    const u=sym.trim().toUpperCase();
+    return u.endsWith('.NS')||u.endsWith('.BO')||u==='^NSEI'||u==='^BSESN'||u==='^NSEBANK';
+  },
+
+  // ── Market bar with countdown ─────────────────────────────────────────────
   updateMarketBar(){
     const now=new Date();
     const ist=new Date(now.toLocaleString('en-US',{timeZone:'Asia/Kolkata'}));
@@ -605,44 +615,86 @@ async yahooFetch(symbol, interval, range, extSig=null){
     const et=new Date(now.toLocaleString('en-US',{timeZone:'America/New_York'}));
     const etDay=et.getDay(),etMins=et.getHours()*60+et.getMinutes();
     const usOpen=etDay>=1&&etDay<=5&&etMins>=9*60+30&&etMins<16*60;
+
+    const fmt=m=>`${Math.floor(m/60)}h ${m%60}m`;
+
     const dot=document.getElementById('mkt-dot');
     const nseEl=document.getElementById('mkt-nse');
     const nseTag=document.getElementById('mkt-nse-tag');
     const usTag=document.getElementById('mkt-us-tag');
+    const usEl=document.getElementById('mkt-us');
     const timeEl=document.getElementById('mkt-time');
-    if(!dot)return;
+    if(!dot) return;
+
     dot.style.color=nseOpen?'var(--ac)':'var(--red-bright)';
     nseTag.className='mkt-tag '+(nseOpen?'open':nsePreOpen?'pre':'closed');
     nseTag.textContent=nseOpen?'OPEN':nsePreOpen?'PRE-OPEN':'CLOSED';
-    nseEl.textContent='NSE / BSE · '+ist.toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit',timeZone:'Asia/Kolkata'})+' IST';
+    if(nseOpen){
+      const closeIn=15*60+30-istMins;
+      nseEl.textContent=`NSE/BSE · closes in ${fmt(closeIn)}`;
+    } else {
+      let minsTo;
+      if(istDay===0) minsTo=(24*60-istMins)+9*60+15;
+      else if(istDay===6) minsTo=(48*60-istMins)+9*60+15;
+      else if(istMins<9*60+15) minsTo=9*60+15-istMins;
+      else minsTo=(24*60-istMins)+9*60+15;
+      nseEl.textContent=`NSE/BSE · opens in ${fmt(minsTo)}`;
+    }
+
     usTag.className='mkt-tag '+(usOpen?'open':'closed');
     usTag.textContent=usOpen?'OPEN':'CLOSED';
-    if(timeEl)timeEl.textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
+    if(usOpen){
+      const closeIn=16*60-etMins;
+      usEl.textContent=`NYSE/NASDAQ · closes in ${fmt(closeIn)}`;
+    } else {
+      let minsTo;
+      if(etDay===0) minsTo=(24*60-etMins)+9*60+30;
+      else if(etDay===6) minsTo=(48*60-etMins)+9*60+30;
+      else if(etMins<9*60+30) minsTo=9*60+30-etMins;
+      else minsTo=(24*60-etMins)+9*60+30;
+      usEl.textContent=`NYSE/NASDAQ · opens in ${fmt(minsTo)}`;
+    }
+    if(timeEl) timeEl.textContent=now.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'});
   },
 
+  // ── Stocks list ───────────────────────────────────────────────────────────
   stocks:[
-    {sym:'RELIANCE.NS',  name:'Reliance Industries',     cat:'india'},
-    {sym:'TCS.NS',       name:'Tata Consultancy',         cat:'india'},
-    {sym:'INFY.NS',      name:'Infosys',                  cat:'india'},
-    {sym:'HDFCBANK.NS',  name:'HDFC Bank',                cat:'india'},
-    {sym:'ICICIBANK.NS', name:'ICICI Bank',               cat:'india'},
-    {sym:'SBIN.NS',      name:'State Bank of India',      cat:'india'},
-    {sym:'TATAMOTORS.NS',name:'Tata Motors',              cat:'india'},
-    {sym:'WIPRO.NS',     name:'Wipro',                    cat:'india'},
-    {sym:'BAJFINANCE.NS',name:'Bajaj Finance',            cat:'india'},
-    {sym:'ADANIENT.NS',  name:'Adani Enterprises',        cat:'india'},
-    {sym:'MARUTI.NS',    name:'Maruti Suzuki',            cat:'india'},
-    {sym:'ONGC.NS',      name:'ONGC',                     cat:'india'},
-    {sym:'AAPL',         name:'Apple',                    cat:'us'},
-    {sym:'NVDA',         name:'NVIDIA',                   cat:'us'},
-    {sym:'MSFT',         name:'Microsoft',                cat:'us'},
-    {sym:'TSLA',         name:'Tesla',                    cat:'us'},
-    {sym:'AMZN',         name:'Amazon',                   cat:'us'},
-    {sym:'META',         name:'Meta',                     cat:'us'},
-    {sym:'^NSEI',        name:'Nifty 50',                 cat:'index'},
-    {sym:'^BSESN',       name:'BSE Sensex',               cat:'index'},
-    {sym:'^IXIC',        name:'NASDAQ Composite',         cat:'index'},
-    {sym:'^DJI',         name:'Dow Jones',                cat:'index'},
+    {sym:'RELIANCE.NS',  name:'Reliance Industries',  cat:'india'},
+    {sym:'TCS.NS',       name:'Tata Consultancy',      cat:'india'},
+    {sym:'INFY.NS',      name:'Infosys',               cat:'india'},
+    {sym:'HDFCBANK.NS',  name:'HDFC Bank',             cat:'india'},
+    {sym:'ICICIBANK.NS', name:'ICICI Bank',            cat:'india'},
+    {sym:'SBIN.NS',      name:'State Bank of India',   cat:'india'},
+    {sym:'TATAMOTORS.NS',name:'Tata Motors',           cat:'india'},
+    {sym:'WIPRO.NS',     name:'Wipro',                 cat:'india'},
+    {sym:'BAJFINANCE.NS',name:'Bajaj Finance',         cat:'india'},
+    {sym:'ADANIENT.NS',  name:'Adani Enterprises',     cat:'india'},
+    {sym:'AAPL',         name:'Apple',                 cat:'us'},
+    {sym:'NVDA',         name:'NVIDIA',                cat:'us'},
+    {sym:'MSFT',         name:'Microsoft',             cat:'us'},
+    {sym:'TSLA',         name:'Tesla',                 cat:'us'},
+    {sym:'AMZN',         name:'Amazon',                cat:'us'},
+    {sym:'META',         name:'Meta',                  cat:'us'},
+    {sym:'GOOGL',        name:'Alphabet',              cat:'us'},
+    {sym:'^NSEI',        name:'Nifty 50',              cat:'index'},
+    {sym:'^BSESN',       name:'BSE Sensex',            cat:'index'},
+    {sym:'^IXIC',        name:'NASDAQ Composite',      cat:'index'},
+    {sym:'^DJI',         name:'Dow Jones',             cat:'index'},
+    {sym:'^GSPC',        name:'S&P 500',               cat:'index'},
+    {sym:'BTC-USD',      name:'Bitcoin',               cat:'crypto'},
+    {sym:'ETH-USD',      name:'Ethereum',              cat:'crypto'},
+    {sym:'SOL-USD',      name:'Solana',                cat:'crypto'},
+    {sym:'BNB-USD',      name:'BNB',                   cat:'crypto'},
+    {sym:'GC=F',         name:'Gold',                  cat:'commodity'},
+    {sym:'SI=F',         name:'Silver',                cat:'commodity'},
+    {sym:'CL=F',         name:'Crude Oil',             cat:'commodity'},
+    {sym:'NG=F',         name:'Natural Gas',           cat:'commodity'},
+    {sym:'HSBA.L',       name:'HSBC',                  cat:'intl'},
+    {sym:'SAP.DE',       name:'SAP',                   cat:'intl'},
+    {sym:'9988.HK',      name:'Alibaba HK',            cat:'intl'},
+    {sym:'7203.T',       name:'Toyota',                cat:'intl'},
+    {sym:'RIO.AX',       name:'Rio Tinto AU',          cat:'intl'},
+    {sym:'SHOP.TO',      name:'Shopify CA',            cat:'intl'},
   ],
 
   // ── Format ────────────────────────────────────────────────────────────────
@@ -650,12 +702,16 @@ async yahooFetch(symbol, interval, range, extSig=null){
     if(this.cur==='INR') return '₹'+(usd*this.inrRate).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
     return '$'+usd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
   },
-  fmtNative(val, currency){
+  fmtNative(val,currency){
+    if(!currency||currency==='USD') return this.fmtUSD(val);
     if(currency==='INR'){
       if(this.cur==='USD') return '$'+(val/this.inrRate).toFixed(2);
       return '₹'+val.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
     }
-    return this.fmtUSD(val);
+    const syms={GBP:'£',EUR:'€',JPY:'¥',HKD:'HK$',AUD:'A$',CAD:'C$',CHF:'CHF '};
+    const s=syms[currency]||(currency+' ');
+    const decimals=val>=1000?0:val>=1?2:4;
+    return s+val.toLocaleString('en-US',{minimumFractionDigits:decimals,maximumFractionDigits:decimals});
   },
   setCur(c){
     this.cur=c;
@@ -681,8 +737,7 @@ async yahooFetch(symbol, interval, range, extSig=null){
     Popup.init();
     this.bindAuth(); this.bindNav(); this.bindTrade(); this.bindTheme();
     this.bindFilters(); this.renderPills(); this.renderTape(); this.updateMarketBar();
-setInterval(() => this.updateMarketBar(), 60000);
-    // fetch live INR rate on load
+    setInterval(()=>this.updateMarketBar(),60000);
     fetch('/api/fx/inr').then(r=>r.json()).then(d=>{if(d.usdInrRate)this.inrRate=d.usdInrRate;this.updateFxStrip();}).catch(()=>{});
     this.initSb();
   },
@@ -733,6 +788,8 @@ setInterval(() => this.updateMarketBar(), 60000);
     document.getElementById('sb-name').textContent=this.user.displayName;
     document.getElementById('sb-handle').textContent='@'+this.user.username;
     this.nav('v-port');
+    this.fetchTapePrices();
+    setInterval(()=>this.fetchTapePrices(),90000);
   },
   async logout(){
     const ok=await Popup.confirm('Log Out','Are you sure you want to log out?');
@@ -831,7 +888,7 @@ setInterval(() => this.updateMarketBar(), 60000);
     const c=document.getElementById('pills'); c.innerHTML='';
     this.stocks.filter(s=>this._filter==='all'||s.cat===this._filter).forEach(s=>{
       const d=document.createElement('div'); d.className='trend-pill';
-      const lbl=s.sym.replace('.NS','').replace('.BO','').replace('^','');
+      const lbl=s.sym.replace(/\.(NS|BO|L|DE|T|HK|AX|TO|PA|MI)$/,'').replace('-USD','').replace('=F','').replace(/^\^/,'');
       d.innerHTML=`<div class="tp-sym">${lbl}</div><div class="tp-lbl">${s.name}</div>`;
       d.addEventListener('click',()=>{document.getElementById('search-in').value=s.sym;this.searchTicker();});
       c.appendChild(d);
@@ -844,75 +901,78 @@ setInterval(() => this.updateMarketBar(), 60000);
     document.getElementById('search-err').classList.add('hidden');
     this.calcOrder();
   },
-async searchTicker(){
+
+  async searchTicker(){
     const errEl=document.getElementById('search-err'); errEl.classList.add('hidden');
     const q=document.getElementById('search-in').value.trim(); if(!q) return;
     const btn=document.getElementById('btn-search'); btn.disabled=true; btn.textContent='Searching…';
     try{
-        // Step 1: get ticker routing from backend (Groq AI identification)
-        let routing=null;
-        try{
-            const r=await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
-            const d=await r.json();
-            if(r.ok) routing=d;
-        }catch(e){}
+      let routing=null;
+      try{
+        const r=await fetch(`/api/market/query?query=${encodeURIComponent(q)}`);
+        const d=await r.json();
+        if(r.ok) routing=d;
+      }catch(e){}
 
-        const isIndian = routing ? routing.currency==='INR' : this.looksIndian(q);
+      const isYahoo=routing ? routing.provider==='yahoo' : this.isYahooAsset(q);
 
-        if(isIndian){
-            // Always fetch price client-side for Indian stocks — works regardless of market hours
-            let symbol = routing?.symbol;
-            if(!symbol){
-                const u=q.trim().toUpperCase();
-                symbol=(u.endsWith('.NS')||u.endsWith('.BO')||u.startsWith('^'))?u:u+'.NS';
-            }
-            let json;
-            try{ json=await this.yahooFetch(symbol,'1d','5d'); }
-            catch(e){ errEl.textContent=`Could not fetch '${symbol}' — check connection.`; errEl.classList.remove('hidden'); return; }
-
-            const result=json?.chart?.result?.[0];
-            if(!result){ errEl.textContent=`Symbol '${symbol}' not found.`; errEl.classList.remove('hidden'); return; }
-
-            const meta=result.meta, qd=result.indicators.quote[0], ts=result.timestamp||[];
-            let price=meta.regularMarketPrice??meta.previousClose??0;
-            let prev=meta.chartPreviousClose??meta.previousClose??price;
-            let lastHigh=price, lastLow=price;
-
-            for(let i=ts.length-1;i>=0;i--){
-                if(qd.close[i]!=null){
-                    price=qd.close[i]; lastHigh=qd.high?.[i]??price; lastLow=qd.low?.[i]??price; break;
-                }
-            }
-            const change=price-prev, pct=prev?(change/prev)*100:0;
-            this.asset={
-                symbol, price, change, pct, high:lastHigh, low:lastLow,
-                currency:'INR', provider:'yahoo', usdInrRate:this.inrRate,
-                cleanName: routing?.cleanName ?? meta.shortName ?? meta.longName ?? symbol.replace('.NS','').replace('.BO','').replace(/^\^/,''),
-                assetClassDescription: routing?.assetClassDescription ?? meta.longName ?? '',
-            };
-        } else {
-            if(!routing){ errEl.textContent='Could not reach server — is Flask running?'; errEl.classList.remove('hidden'); return; }
-            this.asset=routing;
+      if(isYahoo){
+        let symbol=routing?.symbol;
+        if(!symbol){
+          const u=q.trim().toUpperCase();
+          symbol=this.isYahooAsset(u)?u:u+'.NS';
         }
+        let json;
+        try{ json=await this.yahooFetch(symbol,'1d','5d'); }
+        catch(e){ errEl.textContent=`Could not fetch '${symbol}' — check connection.`; errEl.classList.remove('hidden'); return; }
 
-        if(this.asset.usdInrRate) this.inrRate=this.asset.usdInrRate;
+        const result=json?.chart?.result?.[0];
+        if(!result){ errEl.textContent=`Symbol '${symbol}' not found.`; errEl.classList.remove('hidden'); return; }
 
-        document.getElementById('ticker-panel').classList.remove('hidden');
-        document.getElementById('t-sym').textContent=this.asset.cleanName;
-        document.getElementById('t-name').textContent=this.asset.assetClassDescription||'';
-        document.getElementById('t-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
-        const sign=this.asset.change>=0?'+':'';
-        const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).slice(1)+' ('+sign+this.asset.pct.toFixed(2)+'%)';
-        const chgEl=document.getElementById('t-chg'); chgEl.textContent=chgStr; chgEl.className=this.asset.change>=0?'gain':'loss';
-        document.getElementById('st-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
-        document.getElementById('st-high').textContent=this.fmtNative(this.asset.high,this.asset.currency);
-        document.getElementById('st-low').textContent=this.fmtNative(this.asset.low,this.asset.currency);
-        document.getElementById('st-sym').textContent=this.asset.symbol;
-        document.getElementById('st-usd').textContent=this.asset.currency==='INR'?'$'+(this.asset.price/this.inrRate).toFixed(4)+' USD':'—';
-        this.syncSlider(); this.loadChart(); this.calcOrder();
+        const meta=result.meta, qd=result.indicators.quote[0], ts=result.timestamp||[];
+        let price=meta.regularMarketPrice??meta.previousClose??0;
+        let prev=meta.chartPreviousClose??meta.previousClose??price;
+        let lastHigh=price, lastLow=price;
+
+        for(let i=ts.length-1;i>=0;i--){
+          if(qd.close[i]!=null){
+            price=qd.close[i]; lastHigh=qd.high?.[i]??price; lastLow=qd.low?.[i]??price; break;
+          }
+        }
+        const change=price-prev, pct=prev?(change/prev)*100:0;
+        const currency=meta.currency??(this.isIndianAsset(symbol)?'INR':'USD');
+        this.asset={
+          symbol, price, change, pct, high:lastHigh, low:lastLow,
+          currency,
+          provider:'yahoo', usdInrRate:this.inrRate,
+          cleanName: routing?.cleanName ?? meta.shortName ?? meta.longName ?? symbol.replace(/\.(NS|BO|L|DE|T|HK|AX|TO)$/,'').replace(/-USD$/,'').replace(/=F$/,'').replace(/^\^/,''),
+          assetClassDescription: routing?.assetClassDescription ?? meta.longName ?? '',
+        };
+      } else {
+        if(!routing){ errEl.textContent='Could not reach server — is Flask running?'; errEl.classList.remove('hidden'); return; }
+        this.asset=routing;
+      }
+
+      if(this.asset.usdInrRate) this.inrRate=this.asset.usdInrRate;
+
+      document.getElementById('ticker-panel').classList.remove('hidden');
+      document.getElementById('t-sym').textContent=this.asset.cleanName;
+      document.getElementById('t-name').textContent=this.asset.assetClassDescription||'';
+      document.getElementById('t-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
+      const sign=this.asset.change>=0?'+':'';
+      const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).slice(1)+' ('+sign+this.asset.pct.toFixed(2)+'%)';
+      const chgEl=document.getElementById('t-chg'); chgEl.textContent=chgStr; chgEl.className=this.asset.change>=0?'gain':'loss';
+      document.getElementById('st-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
+      document.getElementById('st-high').textContent=this.fmtNative(this.asset.high,this.asset.currency);
+      document.getElementById('st-low').textContent=this.fmtNative(this.asset.low,this.asset.currency);
+      document.getElementById('st-sym').textContent=this.asset.symbol;
+      const nativeCur=this.asset.currency;
+      document.getElementById('st-usd').textContent=(nativeCur!=='USD')?'$'+(this.asset.price/(nativeCur==='INR'?this.inrRate:1)).toFixed(4)+' USD':'—';
+      this.syncSlider(); this.loadChart(); this.calcOrder();
     }catch(e){ errEl.textContent='Network error. Try again.'; errEl.classList.remove('hidden'); console.error(e); }
     finally{ btn.disabled=false; btn.textContent='Search'; }
-},
+  },
+
   syncSlider(){
     if(!this.asset) return;
     const owned=this.posCache[this.asset.symbol]||0;
@@ -988,10 +1048,10 @@ async searchTicker(){
   // ── Chart ─────────────────────────────────────────────────────────────────
   loadChart(){
     this.tearChart();
-    const isIndian=this.asset&&(this.asset.symbol.endsWith('.NS')||this.asset.symbol.endsWith('.BO')||this.asset.symbol.startsWith('^NSE')||this.asset.symbol==='^BSESN'||this.asset.symbol==='^NSEBANK');
+    const useNative=this.asset&&this.isYahooAsset(this.asset.symbol);
     const tvWrap=document.getElementById('tv-wrap');
     const nativeWrap=document.getElementById('native-wrap');
-    if(isIndian){
+    if(useNative){
       tvWrap.classList.add('hidden'); nativeWrap.classList.remove('hidden');
       this.cRange='max'; this.cInterval='1wk';
       document.querySelectorAll('#cctrls button[id^="rb-"]').forEach(b=>b.classList.remove('active'));
@@ -1086,55 +1146,53 @@ async searchTicker(){
     }
     line.setData(data); this.maSeries[period]=line;
   },
-async fetchChart(){
+
+  async fetchChart(){
     if(!this.asset) return;
-    if(this._chartCtrl) this._chartCtrl.abort();   // cancel previous range fetch
+    if(this._chartCtrl) this._chartCtrl.abort();
     this._chartCtrl=new AbortController();
     const sig=this._chartCtrl.signal;
-
     const loadEl=document.getElementById('cload');
     if(loadEl) loadEl.style.display='flex';
-    const isIndian=this.asset.currency==='INR'||this.looksIndian(this.asset.symbol);
-
+    const isYahoo=this.isYahooAsset(this.asset.symbol);
     try{
-        let json;
-        if(isIndian){
-            try{
-                json=await this.yahooFetch(this.asset.symbol,this.cInterval,this.cRange,sig);
-            }catch(e){
-                if(sig.aborted) return;   // user clicked a different range — silently drop
-                // CORS proxy failed — fall back to our own backend proxy
-                const r=await fetch(`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`,{signal:sig});
-                json=await r.json();
-            }
-        } else {
-            const r=await fetch(`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`,{signal:sig});
-            json=await r.json();
+      let json;
+      if(isYahoo){
+        try{
+          json=await this.yahooFetch(this.asset.symbol,this.cInterval,this.cRange,sig);
+        }catch(e){
+          if(sig.aborted) return;
+          const r=await fetch(`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`,{signal:sig});
+          json=await r.json();
         }
-        if(sig.aborted) return;
-
-        const result=json?.chart?.result?.[0];
-        if(!result||!result.timestamp?.length){
-            if(loadEl) loadEl.innerHTML='<span style="color:var(--red-bright)">No chart data available</span>';
-            return;
-        }
-        if(loadEl) loadEl.style.display='none';
-        const q=result.indicators.quote[0];
-        const intra=['2m','5m','15m','30m','60m','90m','1h'].includes(this.cInterval);
-        const seen=new Set(); this.rawData=[];
-        for(let i=0;i<result.timestamp.length;i++){
-            if(q.close[i]==null||q.open[i]==null) continue;
-            const t=intra?result.timestamp[i]:this.toDS(result.timestamp[i]);
-            if(seen.has(String(t))) continue; seen.add(String(t));
-            this.rawData.push({time:t,open:+(q.open[i].toFixed(2)),high:+(q.high[i].toFixed(2)),low:+(q.low[i].toFixed(2)),close:+(q.close[i].toFixed(2)),volume:q.volume[i]||0});
-        }
-        this.rawData.sort((a,b)=>typeof a.time==='string'?a.time<b.time?-1:1:a.time-b.time);
-        this.applyData(); this.activeMA.forEach(p=>this.buildMA(p));
+      } else {
+        const r=await fetch(`/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`,{signal:sig});
+        json=await r.json();
+      }
+      if(sig.aborted) return;
+      const result=json?.chart?.result?.[0];
+      if(!result||!result.timestamp?.length){
+        if(loadEl) loadEl.innerHTML='<span style="color:var(--red-bright)">No chart data available</span>';
+        return;
+      }
+      if(loadEl) loadEl.style.display='none';
+      const q=result.indicators.quote[0];
+      const intra=['2m','5m','15m','30m','60m','90m','1h'].includes(this.cInterval);
+      const seen=new Set(); this.rawData=[];
+      for(let i=0;i<result.timestamp.length;i++){
+        if(q.close[i]==null||q.open[i]==null) continue;
+        const t=intra?result.timestamp[i]:this.toDS(result.timestamp[i]);
+        if(seen.has(String(t))) continue; seen.add(String(t));
+        this.rawData.push({time:t,open:+(q.open[i].toFixed(2)),high:+(q.high[i].toFixed(2)),low:+(q.low[i].toFixed(2)),close:+(q.close[i].toFixed(2)),volume:q.volume[i]||0});
+      }
+      this.rawData.sort((a,b)=>typeof a.time==='string'?a.time<b.time?-1:1:a.time-b.time);
+      this.applyData(); this.activeMA.forEach(p=>this.buildMA(p));
     }catch(e){
-        if(e.name==='AbortError') return;   // silently cancel — not an error
-        if(loadEl) loadEl.innerHTML=`<span style="color:var(--red-bright)">${e.message}</span>`;
+      if(e.name==='AbortError') return;
+      if(loadEl) loadEl.innerHTML=`<span style="color:var(--red-bright)">${e.message}</span>`;
     }
-},
+  },
+
   applyData(){
     if(!this.mainSeries||!this.volSeries||!this.rawData.length) return;
     if(this.chartStyle==='candlestick') this.mainSeries.setData(this.rawData);
@@ -1177,24 +1235,45 @@ async fetchChart(){
     const next=document.body.getAttribute('data-theme')==='dark'?'light':'dark';
     document.body.setAttribute('data-theme',next);
     document.getElementById('btn-theme').textContent=next==='dark'?'Light Mode':'Dark Mode';
-    if(this.asset&&this.asset.provider!=='finnhub'){this.tearChart();this.initChart();this.applyData();this.activeMA.forEach(p=>this.buildMA(p));}
+    if(this.asset&&this.isYahooAsset(this.asset.symbol)){this.tearChart();this.initChart();this.applyData();this.activeMA.forEach(p=>this.buildMA(p));}
     else if(this.asset) this.injectTV(this.asset.symbol);
   },
 
-  // ── Ticker tape ───────────────────────────────────────────────────────────
+  // ── Ticker tape with live prices ──────────────────────────────────────────
   renderTape(){
     const c=document.getElementById('tape'); if(!c) return;
     const items=[
-      {t:'RELIANCE',p:'NSE'},{t:'TCS',p:'NSE'},{t:'TSLA',p:'NASDAQ'},{t:'AAPL',p:'NYSE'},
-      {t:'NIFTY 50',p:'INDEX'},{t:'NVDA',p:'NASDAQ'},{t:'INFY',p:'NSE'},{t:'MSFT',p:'NASDAQ'},
-      {t:'HDFCBANK',p:'NSE'},{t:'SENSEX',p:'INDEX'},{t:'AMZN',p:'NASDAQ'},{t:'SBIN',p:'NSE'},
+      {t:'BTC',sym:'BTC-USD'},{t:'ETH',sym:'ETH-USD'},
+      {t:'RELIANCE',sym:'RELIANCE.NS'},{t:'TCS',sym:'TCS.NS'},
+      {t:'TSLA',sym:'TSLA'},{t:'AAPL',sym:'AAPL'},
+      {t:'NIFTY',sym:'^NSEI'},{t:'NVDA',sym:'NVDA'},
+      {t:'GOLD',sym:'GC=F'},{t:'MSFT',sym:'MSFT'},
+      {t:'SENSEX',sym:'^BSESN'},{t:'AMZN',sym:'AMZN'},
+      {t:'SOL',sym:'SOL-USD'},{t:'INFY',sym:'INFY.NS'},
     ];
     c.innerHTML='';
     [...items,...items,...items].forEach(i=>{
-      const el=document.createElement('div'); el.className='ti';
-      el.innerHTML=`<span class="ti-s">${i.t}</span><span class="ti-p">${i.p}</span>`;
+      const el=document.createElement('div'); el.className='ti'; el.dataset.sym=i.sym;
+      el.innerHTML=`<span class="ti-s">${i.t}</span><span class="ti-price" style="color:var(--td)">···</span>`;
       c.appendChild(el);
     });
+  },
+
+  async fetchTapePrices(){
+    try{
+      const r=await fetch('/api/tape'); if(!r.ok) return;
+      const data=await r.json();
+      document.querySelectorAll('.ti[data-sym]').forEach(el=>{
+        const q=data[el.dataset.sym]; if(!q) return;
+        const pr=el.querySelector('.ti-price'); if(!pr) return;
+        const cur=q.currency==='INR'?'₹':q.currency==='GBP'?'£':q.currency==='EUR'?'€':'$';
+        const decimals=q.price>=1000?0:q.price>=1?2:4;
+        const p=q.price.toLocaleString('en-US',{maximumFractionDigits:decimals});
+        const sign=q.pct>=0?'+':'';
+        pr.textContent=` ${cur}${p} ${sign}${q.pct.toFixed(2)}%`;
+        pr.style.color=q.pct>=0?'var(--ac)':'var(--red-bright)';
+      });
+    }catch(e){}
   },
 };
 
