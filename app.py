@@ -26,8 +26,7 @@ users_col    = db["users"]
 users_col.create_index("username", unique=True)
 
 STARTING_CASH = 10_000.00
-INR_PER_USD   = 84.0
-
+INR_PER_USD   = 91.0
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
@@ -88,6 +87,24 @@ def get_asset_currency(ticker: str) -> str:
     if t.endswith(".AX"):         return "AUD"
     if t.endswith(".TO"):         return "CAD"
     return "USD"
+
+def get_currency_divisor(currency: str, inr_rate: float) -> float:
+    """Returns the units of foreign currency per 1 USD for portfolio valuation math."""
+    if currency == "INR":
+        return inr_rate
+    elif currency == "GBP":
+        return 0.79  # approximate fallback; ideally fetch live
+    elif currency == "EUR":
+        return 0.92
+    elif currency == "JPY":
+        return 149.0
+    elif currency == "HKD":
+        return 7.82
+    elif currency == "AUD":
+        return 1.53
+    elif currency == "CAD":
+        return 1.36
+    return 1.0
 
 def interpret_asset_query(user_input: str) -> dict:
     system_instruction = """
@@ -419,23 +436,8 @@ def user_portfolio():
             curr_price_local = avg_cost_local
             asset_currency   = get_asset_currency(sym)
 
-        # Convert to USD for portfolio math
-        if asset_currency == "INR":
-            divisor = inr_rate
-        elif asset_currency == "GBP":
-            divisor = 0.79  # approximate; ideally fetch live
-        elif asset_currency == "EUR":
-            divisor = 0.92
-        elif asset_currency == "JPY":
-            divisor = 149.0
-        elif asset_currency == "HKD":
-            divisor = 7.82
-        elif asset_currency == "AUD":
-            divisor = 1.53
-        elif asset_currency == "CAD":
-            divisor = 1.36
-        else:
-            divisor = 1.0
+        # Convert to USD for portfolio mathematics using helper function
+        divisor = get_currency_divisor(asset_currency, inr_rate)
 
         avg_cost_usd     = avg_cost_local / divisor
         curr_price_usd   = curr_price_local / divisor
@@ -494,22 +496,7 @@ def trade_execute():
     inr_rate  = get_live_inr_rate()
     
     asset_currency = get_asset_currency(symbol)
-    if asset_currency == "INR":
-        divisor = inr_rate
-    elif asset_currency == "GBP":
-        divisor = 0.79
-    elif asset_currency == "EUR":
-        divisor = 0.92
-    elif asset_currency == "JPY":
-        divisor = 149.0
-    elif asset_currency == "HKD":
-        divisor = 7.82
-    elif asset_currency == "AUD":
-        divisor = 1.53
-    elif asset_currency == "CAD":
-        divisor = 1.36
-    else:
-        divisor = 1.0
+    divisor = get_currency_divisor(asset_currency, inr_rate)
 
     cost_local = round(qty * price, 6)
     cost_usd   = round(cost_local / divisor, 6)
@@ -546,10 +533,11 @@ def trade_execute():
         "currency":    asset_currency
     }
 
+    # Recalculate full valuation snapshots safely applying global currency mappings
     snap_invested = 0.0
     for s, h in holdings.items():
         sc = get_asset_currency(s)
-        sd = inr_rate if sc == "INR" else 1.0
+        sd = get_currency_divisor(sc, inr_rate)
         snap_invested += h["shares"] * h["cost"] / sd
 
     snap_net = round(cash + snap_invested, 2)
