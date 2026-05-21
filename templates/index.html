@@ -570,9 +570,6 @@ const App={
     try{if(localStorage.getItem('sb-state')==='closed')this.toggleSb();}catch(e){}
   },
 
-  // ── rest of your App object continues below ──
-  async yahooFetch(symbol, interval, range, extSig=null){
-
 async yahooFetch(symbol, interval, range, extSig=null){
     const base=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}?interval=${interval}&range=${range}&includePrePost=false`;
     for(let i=0;i<this.PROXIES.length;i++){
