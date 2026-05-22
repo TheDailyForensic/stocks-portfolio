@@ -3,10 +3,27 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>StockenShares — Paper Trading</title>
+<title>StockenShares , Paper Trading</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
 <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=VT323&display=swap" rel="stylesheet"/>
 <style>
+.search-loader{
+  width:22px;
+  height:22px;
+  border:2px solid var(--b);
+  border-top-color:var(--ac);
+  border-radius:50%;
+  animation:spin .8s linear infinite;
+  flex-shrink:0;
+}
+@keyframes spin{
+  to{
+    transform:rotate(360deg);
+  }
+}
+  
+.tutorial-step{ transition:opacity .25s ease;}
+
 :root {
   --font-display:'Bebas Neue',sans-serif;
   --font-mono:'Share Tech Mono',monospace;
@@ -33,6 +50,35 @@
   --red:#ff0033;--red-dim:#cc0028;--red-glow:rgba(255,0,51,.1);--red-bright:#ff3355;
   --grid-line:rgba(0,255,65,.06);
 }
+[data-theme="red"]{
+  --bg:#180404;
+  --bg-card:#2a0606;
+  --bg-up:#360808;
+  --bg-in:#1e0303;
+  --bg-hov:#451010;
+
+  --b:#551010;
+  --bb:#801a1a;
+
+  --t1:#ffcfcf;
+  --t2:#d45a5a;
+  --td:#802a2a;
+
+  --ac:#f03d3d;
+  --acd:#d42424;
+  --acg:rgba(240,61,61,.12);
+  --acb:#ff7a7a;
+
+  --sh:rgba(0,0,0,.5);
+
+  --red:#ff3860;
+  --red-dim:#c71f40;
+  --red-glow:rgba(255,56,96,.12);
+  --red-bright:#ff6b8b;
+
+  --grid-line:rgba(240,61,61,.03);
+}
+  
 [data-theme="terminal"]{
   --font-mono:'IBM Plex Mono',monospace;
   --bg:#060a0f;--bg-card:#0b1018;--bg-up:#111820;--bg-in:#080c12;--bg-hov:#182030;
@@ -127,7 +173,37 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 .pop-btn.primary:hover{background:var(--acd)}
 .pop-btn.secondary{background:var(--bg-up);color:var(--t1);border:1px solid var(--b)}
 .pop-btn.secondary:hover{background:var(--bg-hov)}
+.tutorial-ov{
+  position:fixed;
+  inset:0;
+  background:rgba(0,0,0,.7);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:20000;
+}
 
+.tutorial-box{
+  width:min(520px,92vw);
+  background:var(--bg-card);
+  border:1px solid var(--bb);
+  border-radius:var(--r-lg);
+  padding:2rem;
+}
+
+.tutorial-step{
+  font-family:var(--font-body);
+  line-height:1.7;
+  color:var(--t1);
+  font-size:.95rem;
+}
+
+.tutorial-actions{
+  display:flex;
+  justify-content:flex-end;
+  gap:.7rem;
+  margin-top:1.5rem;
+}
 /* ── AUTH ── */
 .auth-screen{display:flex;align-items:center;justify-content:center;width:100%;min-height:100vh;padding:1.5rem;position:relative;background:radial-gradient(ellipse at center,var(--bg-card) 0%,var(--bg) 70%)}
 .auth-grid{position:absolute;inset:0;pointer-events:none;background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);background-size:40px 40px;opacity:.7}
@@ -339,7 +415,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 <!-- POPUP -->
 <div class="pop-ov" id="gpop">
   <div class="pop-box info" id="pbox">
-    <div class="pop-ico" id="pico">ℹ️</div>
+    <div class="pop-ico" id="pico">INFO</div>
     <div class="pop-ttl" id="pttl">Notice</div>
     <div class="pop-body" id="pbody"></div>
     <div class="pop-acts" id="pacts"></div>
@@ -385,7 +461,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
         <input class="form-input" id="in-rp" type="password" placeholder="Min 4 characters" autocomplete="new-password"/>
       </div>
       <div class="form-err hidden" id="rerr"></div>
-      <button class="btn-primary" id="btn-reg">Create Account — Get $10,000</button>
+      <button class="btn-primary" id="btn-reg">Create Account , Get $10,000</button>
     </div>
   </div>
 </div>
@@ -399,7 +475,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
     <div class="sb-brand">STOCKEN<span>SHARES</span></div>
     <div class="sb-sub">GLOBAL PAPER TRADING</div>
     <div class="sb-user">
-      <div class="u-name" id="sb-name">...</div>
+      <div class="u-name" id="sb-name">. . .</div>
       <div class="u-handle" id="sb-handle">@user</div>
       <div class="u-cash-sb" id="sb-cash">$10,000.00</div>
     </div>
@@ -424,10 +500,10 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
     <div class="mkt-bar" id="mkt-bar">
       <span id="mkt-dot" style="font-size:.6rem;color:var(--td)">●</span>
       <span id="mkt-nse" style="color:var(--t2)">NSE/BSE</span>
-      <span class="mkt-tag closed" id="mkt-nse-tag">—</span>
+      <span class="mkt-tag closed" id="mkt-nse-tag">,</span>
       <span style="color:var(--b)">·</span>
       <span id="mkt-us" style="color:var(--t2)">NYSE/NASDAQ</span>
-      <span class="mkt-tag closed" id="mkt-us-tag">—</span>
+      <span class="mkt-tag closed" id="mkt-us-tag">,</span>
       <span style="margin-left:auto;color:var(--td);font-size:.65rem" id="mkt-time"></span>
     </div>
 
@@ -477,13 +553,14 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
         </div>
         <div class="trending-grid" id="pills"></div>
         <div class="form-group" style="margin-bottom:0">
-          <label class="form-label">Search any asset — TSLA · RELIANCE · BTC · GC=F · SAP.DE · 7203.T</label>
-          <div style="display:flex;gap:.5rem">
-            <input class="form-input" id="search-in" type="text" placeholder="Ticker or name…" autocomplete="off"/>
-            <button class="btn-primary" id="btn-search" style="width:auto;padding:0 1.2rem;flex-shrink:0">Go</button>
-          </div>
+          <label class="form-label">Search any asset , TSLA · RELIANCE · BTC · GC=F · SAP.DE · 7203.T</label>
+          <div style="display:flex;gap:.5rem;align-items:center">
+  <input class="form-input" id="search-in" type="text" placeholder="Ticker or name..." autocomplete="off"/>
+  <div id="search-loader" class="search-loader hidden"></div>
+  <button class="btn-primary" id="btn-search" style="width:auto;padding:0 1.2rem;flex-shrink:0">Go</button>
+</div>
           <div class="form-err hidden" id="search-err" style="margin-top:.5rem;margin-bottom:0"></div>
-          <div id="slow-note" class="slow-note hidden">⏳ Fetching data via Groq + Yahoo — this can take a few seconds…</div>
+          <div id="slow-note" class="slow-note hidden">Loading market data. Response times are usually faster when the market is open.</div>
         </div>
       </div>
 
@@ -524,7 +601,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
               </div>
               <div id="cm">
                 <div id="ctt"><div class="td" id="ctt-d"></div><div id="ctt-b"></div></div>
-                <div class="chart-msg" id="cload"><div class="spin"></div><span>Loading…</span></div>
+                <div class="chart-msg" id="cload"><div class="spin"></div><span>Loading. . .</span></div>
               </div>
               <div id="cv"></div>
             </div>
@@ -548,9 +625,9 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
                 </div>
               </div>
               <div class="order-preview">
-                <div class="order-row"><span id="cost-lbl" style="color:var(--t2)">Cost</span><span id="prev-cost">—</span></div>
-                <div class="order-row"><span style="color:var(--t2)">USD Equiv</span><span id="prev-usd">—</span></div>
-                <div class="order-row total"><span style="color:var(--t2)">Cash After</span><span id="prev-after">—</span></div>
+                <div class="order-row"><span id="cost-lbl" style="color:var(--t2)">Cost</span><span id="prev-cost">,</span></div>
+                <div class="order-row"><span style="color:var(--t2)">USD Equiv</span><span id="prev-usd">,</span></div>
+                <div class="order-row total"><span style="color:var(--t2)">Cash After</span><span id="prev-after">,</span></div>
               </div>
               <button class="btn-primary" id="btn-order">Execute Order</button>
             </div>
@@ -606,7 +683,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       <div class="card">
         <p style="font-family:var(--font-mono);font-size:.74rem;color:var(--t2);margin-bottom:1rem">Tap a currency to use it as your portfolio display currency. All values shown as units per 1 USD.</p>
         <div class="fx-grid" id="fx-grid">
-          <div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading rates…</div>
+          <div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading rates. . .</div>
         </div>
       </div>
     </section>
@@ -618,11 +695,12 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       <div class="card">
         <h3 class="card-title">Color Theme</h3>
         <div class="theme-grid" style="max-width:600px">
-          <button class="theme-btn active" id="tbtn-raspberry" onclick="App.setTheme('raspberry')">🫐 Raspberry</button>
-          <button class="theme-btn" id="tbtn-matrix" onclick="App.setTheme('matrix')">💻 Matrix</button>
-          <button class="theme-btn" id="tbtn-terminal" onclick="App.setTheme('terminal')">🔵 Terminal</button>
-          <button class="theme-btn" id="tbtn-light" onclick="App.setTheme('light')">☀️ Light</button>
-          <button class="theme-btn" id="tbtn-pink" onclick="App.setTheme('pink')">🌸 Pink</button>
+          <button class="theme-btn active" id="tbtn-raspberry" onclick="App.setTheme('raspberry')">Raspberry</button>
+          <button class="theme-btn" id="tbtn-matrix" onclick="App.setTheme('matrix')">Matrix</button>
+          <button class="theme-btn" id="tbtn-terminal" onclick="App.setTheme('terminal')">Terminal</button>
+          <button class="theme-btn" id="tbtn-light" onclick="App.setTheme('light')">Light</button>
+          <button class="theme-btn" id="tbtn-pink" onclick="App.setTheme('pink')">Pink</button>
+          <button class="theme-btn" id="tbtn-red" onclick="App.setTheme('red')">Red</button>
         </div>
       </div>
 
@@ -667,7 +745,62 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   };
   document.head.appendChild(s);
 })();
+const tutorialSteps = [
+  "Welcome to StockenShares. This tutorial will show you the basics.",
+  "Open Settings to change themes and personalize the platform.",
+  "Use the Trade page to search for stocks, crypto, or commodities.",
+  "Press Buy to purchase assets using your paper cash balance.",
+  "Use Sell to close positions and lock in profits or losses.",
+  "Portfolio shows your holdings, gains, and cash balance.",
+  "Leaderboard compares your returns with other traders."
+];
 
+let tutorialIndex = 0;
+
+function showTutorial(){
+  const seen = localStorage.getItem("tutorial_seen");
+
+  if(seen) return;
+
+  document.getElementById("tutorial-ov").classList.remove("hidden");
+
+  renderTutorial();
+}
+
+function renderTutorial(){
+
+  const el = document.getElementById('tutorial-step');
+
+  el.style.opacity = 0;
+
+  setTimeout(()=>{
+    el.textContent = tutorialSteps[tutorialIndex];
+    el.style.opacity = 1;
+  },150);
+}
+
+document.getElementById("tutorial-next").onclick = () => {
+  tutorialIndex++;
+
+  if(tutorialIndex >= tutorialSteps.length){
+    localStorage.setItem("tutorial_seen", "1");
+
+    document.getElementById("tutorial-ov")
+      .classList.add("hidden");
+
+    return;
+  }
+
+  renderTutorial();
+};
+
+document.getElementById("tutorial-skip").onclick = () => {
+
+  localStorage.setItem("tutorial_seen", "1");
+
+  document.getElementById("tutorial-ov")
+    .classList.add("hidden");
+};
 /* ── MATRIX RAIN ── */
 function startMatrixRain(){
   const canvas=document.getElementById('matrix-rain');
@@ -708,7 +841,7 @@ const Popup={
     this.ov.addEventListener('click',e=>{if(e.target===this.ov)this.close()});
     document.addEventListener('keydown',e=>{if(e.key==='Escape')this.close()});
   },
-  show({type='info',icon='ℹ️',title='Notice',body='',buttons=[]}){
+  show({type='info',icon='INFO',title='Notice',body='',buttons=[]}){
     this.box.className=`pop-box ${type}`;
     this.ico.textContent=icon;this.ttl.textContent=title;this.body.innerHTML=body;
     this.acts.innerHTML='';
@@ -848,7 +981,7 @@ const App={
       return await r.json();
     }catch(e){
       if(e.name==='AbortError'&&extSig?.aborted) throw e;
-      throw new Error(`Could not fetch data for ${symbol} — try again shortly.`);
+      throw new Error(`Could not fetch data for ${symbol} , try again shortly.`);
     }
   },
 
@@ -980,7 +1113,7 @@ const App={
 
   async loadFxRates(){
     const grid=document.getElementById('fx-grid');
-    if(grid) grid.innerHTML='<div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading…</div>';
+    if(grid) grid.innerHTML='<div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading. . .</div>';
     try{
       const r=await fetch('/api/fx/rates');
       const data=await r.json();
@@ -1025,6 +1158,7 @@ const App={
 
   /* ── Theme ── */
   setTheme(t){
+    localStorage.setItem('theme', t);
     document.body.setAttribute('data-theme',t);
     try{localStorage.setItem('theme',t)}catch(e){}
     ['raspberry','matrix','terminal','light','pink'].forEach(x=>{
@@ -1060,6 +1194,12 @@ const App={
   /* ── Init ── */
   init(){
     Popup.init();
+    const savedTheme = localStorage.getItem('theme');
+    
+    if(savedTheme){
+      this.setTheme(savedTheme);
+    }
+    
     this.initTheme();
     this.bindAuth();this.bindNav();this.bindTrade();
     this.bindFilters();this.renderPills();this.renderTape();
@@ -1122,7 +1262,17 @@ const App={
     try{
       const r=await fetch('/api/auth/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({username:u,displayName:dn,password:p})});
       const d=await r.json();
-      if(!r.ok){err.textContent=d.error||'Registration failed.';err.classList.remove('hidden');return;}
+      if(!r.ok){
+  err.textContent=d.error||'Registration failed.';
+  err.classList.remove('hidden');
+  return;
+}
+
+this.user=d;
+
+this.bootApp();
+
+showTutorial();
       this.user=d;this.bootApp();
     }catch(e){err.textContent='Connection error.';err.classList.remove('hidden');}
   },
@@ -1190,7 +1340,7 @@ const App={
     ret.className='kpi-val '+(d.returns>=0?'gain':'loss');
     const tb=document.getElementById('pos-tbl');tb.innerHTML='';
     if(!d.positions?.length){
-      tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--td);padding:2.5rem 0;font-family:var(--font-mono);font-size:.78rem">No open positions — go to Trade to get started.</td></tr>';
+      tb.innerHTML='<tr><td colspan="6" style="text-align:center;color:var(--td);padding:2.5rem 0;font-family:var(--font-mono);font-size:.78rem">No open positions , go to Trade to get started.</td></tr>';
     } else {
       d.positions.forEach(p=>{
         this.posCache[p.rawToken]=p.shares;
@@ -1291,10 +1441,19 @@ const App={
     const errEl=document.getElementById('search-err');errEl.classList.add('hidden');
     const slowNote=document.getElementById('slow-note');slowNote.classList.add('hidden');
     const q=document.getElementById('search-in').value.trim();if(!q) return;
-    const btn=document.getElementById('btn-search');
-    btn.disabled=true;
-    btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span><span></span></span>';
+  const btn=document.getElementById('btn-search');
+const loader=document.getElementById('search-loader');
+loader.classList.remove('hidden');
+btn.disabled=true;
+btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span><span></span></span>';
     const slowTimer=setTimeout(()=>slowNote.classList.remove('hidden'),5000);
+    const timeoutTimer=setTimeout(()=>{
+  errEl.textContent='Request timed out. Please try again.';
+  errEl.classList.remove('hidden');
+  btn.disabled=false;
+  loader.classList.add('hidden');
+  slowNote.classList.add('hidden');
+},15000);
     try{
       let routing=null;
       try{
@@ -1330,7 +1489,7 @@ const App={
           cleanName:routing?.cleanName??meta.shortName??meta.longName??cleanSym,
           assetClassDescription:routing?.assetClassDescription??meta.longName??''};
       } else {
-        if(!routing){errEl.textContent='Could not reach server — is Flask running?';errEl.classList.remove('hidden');return;}
+        if(!routing){errEl.textContent='Could not reach server , is Flask running?';errEl.classList.remove('hidden');return;}
         this.asset=routing;
       }
       if(this.asset.usdInrRate){this.inrRate=this.asset.usdInrRate;this.fxRates.INR=this.asset.usdInrRate;}
@@ -1347,7 +1506,7 @@ const App={
       document.getElementById('st-sym').textContent=this.asset.symbol;
       const nc=this.asset.currency;
       const divisor=this.getCurrencyDivisor(nc);
-      document.getElementById('st-usd').textContent=nc!=='USD'?'$'+(this.asset.price/divisor).toFixed(4)+' USD':'—';
+      document.getElementById('st-usd').textContent=nc!=='USD'?'$'+(this.asset.price/divisor).toFixed(4)+' USD':'-';
       this.syncSlider();this.loadChart();this.calcOrder();
       // Mobile: scroll to order panel
       if(this._isMobile){
@@ -1359,10 +1518,13 @@ const App={
     }catch(e){
       errEl.textContent='Network error. Try again.';errEl.classList.remove('hidden');console.error(e);
     }finally{
-      clearTimeout(slowTimer);
-      slowNote.classList.add('hidden');
-      btn.disabled=false;btn.textContent='Go';
-    }
+    clearTimeout(timeoutTimer);
+  clearTimeout(slowTimer);
+  slowNote.classList.add('hidden');
+  loader.classList.add('hidden');
+  btn.disabled=false;
+  btn.textContent='Go';
+}
   },
 
   syncSlider(){
@@ -1390,8 +1552,8 @@ const App={
   calcOrder(){
     const cashUsd=this.user?.cash||0;
     if(!this.asset){
-      document.getElementById('prev-cost').textContent='—';
-      document.getElementById('prev-usd').textContent='—';
+      document.getElementById('prev-cost').textContent=',';
+      document.getElementById('prev-usd').textContent=',';
       document.getElementById('prev-after').textContent=this.fmtUSD(cashUsd);
       return;
     }
@@ -1419,7 +1581,7 @@ const App={
       `Price: ${this.fmtNative(price,currency)}<br>`+
       `Total: ${this.fmtNative(costNative,currency)} <span style="color:var(--td);font-size:.85em;">($${costUsd.toFixed(2)})</span>`);
     if(!ok) return;
-    const btn=document.getElementById('btn-order');btn.disabled=true;btn.textContent='Processing…';
+    const btn=document.getElementById('btn-order');btn.disabled=true;btn.textContent='Processing. . .';
     try{
       const r=await fetch('/api/trade/execute',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({symbol,qty,mode:this.tradeMode,price})});
       const d=await r.json();
@@ -1466,7 +1628,7 @@ const App={
   },
   initChart(){
     const cm=document.getElementById('cm'),cv=document.getElementById('cv');
-    cm.innerHTML='<div id="ctt"><div class="td" id="ctt-d"></div><div id="ctt-b"></div></div><div class="chart-msg" id="cload"><div class="spin"></div><span>Loading…</span></div>';
+    cm.innerHTML='<div id="ctt"><div class="td" id="ctt-d"></div><div id="ctt-b"></div></div><div class="chart-msg" id="cload"><div class="spin"></div><span>Loading. . .</span></div>';
     cv.innerHTML='';
     const t=document.body.getAttribute('data-theme');
     const dark=t!=='light';
@@ -1476,8 +1638,8 @@ const App={
     const border=dark?(isMatrix?'#0a3a0a':isPink?'#3d1f4a':isTerm?'rgba(0,200,150,.12)':isRasp?'#0f2855':'#1b2636'):'#cbd5e1';
     const text=dark?(isMatrix?'#005a18':isPink?'#7a4a8a':isTerm?'#3a5a4a':isRasp?'#2a5080':'#475569'):'#94a3b8';
     const opts={layout:{background:{color:bg},textColor:text},grid:{vertLines:{color:grid},horzLines:{color:grid}},crosshair:{mode:LightweightCharts.CrosshairMode.Normal},rightPriceScale:{borderColor:border},timeScale:{borderColor:border,timeVisible:true,secondsVisible:false}};
-    this.chartInst=LightweightCharts.createChart(cm,{...opts,width:cm.offsetWidth,height:cm.offsetHeight||320});
-    this.volInst=LightweightCharts.createChart(cv,{...opts,width:cv.offsetWidth,height:70,timeScale:{visible:false},rightPriceScale:{...opts.rightPriceScale,visible:false}});
+    this.chartInst=LightweightCharts.createChart(cm,{. . .opts,width:cm.offsetWidth,height:cm.offsetHeight||320});
+    this.volInst=LightweightCharts.createChart(cv,{. . .opts,width:cv.offsetWidth,height:70,timeScale:{visible:false},rightPriceScale:{. . .opts.rightPriceScale,visible:false}});
     this.addMainSeries();
     this.volSeries=this.volInst.addHistogramSeries({priceFormat:{type:'volume'}});
     this.chartInst.subscribeCrosshairMove(p=>{
@@ -1591,10 +1753,10 @@ const App={
     document.getElementById('native-wrap').classList.add('hidden');
   },
 
-  /* ── Leaderboard — LIVE values, no snapshot stale data ── */
+  /* ── Leaderboard , LIVE values, no snapshot stale data ── */
   async syncLB(){
     const tb=document.getElementById('lb-tbl');
-    tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--td);padding:2rem 0;font-family:var(--font-mono);font-size:.78rem"><span class="loader-bars" style="display:inline-flex"><span></span><span></span><span></span><span></span></span>&nbsp; Computing live values…</td></tr>';
+    tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--td);padding:2rem 0;font-family:var(--font-mono);font-size:.78rem"><span class="loader-bars" style="display:inline-flex"><span></span><span></span><span></span><span></span></span>&nbsp; Computing live values. . .</td></tr>';
     try{
       const r=await fetch('/api/leaderboard');
       if(!r.ok){console.error('LB',r.status);tb.innerHTML='<tr><td colspan="4" style="color:var(--red-bright);text-align:center;padding:2rem;font-family:var(--font-mono);font-size:.78rem">Failed to load leaderboard.</td></tr>';return;}
@@ -1607,7 +1769,7 @@ const App={
       }
       data.forEach((t,i)=>{
         const isMe=this.user&&t.handle===this.user.username;
-        // Backend returns fresh live values — use them directly
+        // Backend returns fresh live values , use them directly
         const netVal=t.netValue;
         const returns=t.returns;
         const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
@@ -1636,7 +1798,7 @@ const App={
       {t:'SOL',sym:'SOL-USD'},{t:'INFY',sym:'INFY.NS'},
     ];
     c.innerHTML='';
-    [...items,...items,...items].forEach(i=>{
+    [. . .items,. . .items,. . .items].forEach(i=>{
       const el=document.createElement('div');el.className='ti';el.dataset.sym=i.sym;
       el.innerHTML=`<span class="ti-s">${i.t}</span><span class="ti-price" style="color:var(--td)"><span class="loader-bars" style="transform:scale(.7)"><span></span><span></span><span></span></span></span>`;
       c.appendChild(el);
@@ -1665,5 +1827,15 @@ document.addEventListener('DOMContentLoaded',()=>App.init());
 if(document.readyState!=='loading') App.init();
 } // end boot
 </script>
+  <div class="tutorial-ov hidden" id="tutorial-ov">
+  <div class="tutorial-box">
+    <div class="tutorial-step" id="tutorial-step"></div>
+
+    <div class="tutorial-actions">
+      <button id="tutorial-next" class="btn-primary">Next</button>
+      <button id="tutorial-skip" class="theme-btn">Skip</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>
