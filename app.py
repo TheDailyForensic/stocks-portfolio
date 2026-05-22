@@ -2,18 +2,17 @@ import os
 import json
 import requests
 import yfinance as yf
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
 from pymongo import MongoClient
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
 
-app.config["SESSION_PERMANENT"] = True
-app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
+# 1st Change: Make sessions persistent across browser closing sessions
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 
 GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
@@ -35,6 +34,320 @@ INR_PER_USD   = 91.0
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
+# ── Live FX Rates ─────────────────────────────────────────────────────────────
+FX_TICKERS = {
+    "INR": "INR=X",
+    "EUR": "EURUSD=X",
+    "GBP": "GBPUSD=X",
+    "JPY": "JPY=X",
+    "CNY": "CNY=X",
+    "SGD": "SGD=X",
+    "AUD": "AUD=X",
+    "CAD": "CAD=X",
+    "HKD": "HKD=X",
+    "CHF": "CHF=X",
+    "KRW": "KRW=X",
+    "MXN": "MXN=X",
+    "BRL": "BRL=X",
+    "AED": "AED=X",
+    "THB": "THB=X",
+    "SEK": "SEK=X",
+    "NOK": "NOK=X",
+}
+
+FALLBACK_RATES = {
+    "INR": 91.0, "EUR": 0.92, "GBP": 0.79, "JPY": 149.0, "CNY": 7.24,
+    "SGD": 1.34, "AUD": 1.53, "CAD": 1.36, "HKD": 7.82, "CHF": 0.90,
+    "KRW": 1320.0, "MXN": 17.5, "BRL": 4.95, "AED": 3.67, "THB": 35.5,
+    "SEK": 10.5, "NOK": 10.8,
+}
+
+_fx_cache = {}
+_fx_cache_time = {}
+
+def get_live_fx_rate(currency: str) -> float:
+    import time
+    now = time.time()
+    if currency == "USD":
+        return 1.0
+    if currency in _fx_cache and now - _fx_cache_time.get(currency, 0) < 300:
+        return _fx_cache[currency]
+    ticker_sym = FX_TICKERS.get(currency)
+    if not ticker_sym:
+        return FALLBACK_RATES.get(currency, 1.0)
+    try:
+        t = yf.Ticker(ticker_sym)
+        hist = t.history(period="1d")
+        if not hist.empty:
+            hist = hist[~hist.index.duplicated(keep="first")].sort_index()
+            rate = float(hist["Close"].iloc[-1])
+            if currency in ("EUR", "GBP", "AUD", "CAD", "CHF"):
+                if rate < 2:
+                    rate = 1.0 / rate if rate != 0 else FALLBACK_RATES.get(currency, 1.0)
+            _fx_cache[currency] = rate
+            _fx_cache_time[currency] = now
+            return rate
+    except Exception:
+        pass
+    return FALLBACK_RATES.get(currency, 1.0)
+
+def get_live_inr_rate() -> float:
+    return get_live_fx_rate("INR")
+
+def get_all_fx_rates() -> dict:
+    rates = {"USD": 1.0}
+    for cur in FALLBACK_RATES:
+        rates[cur] = get_live_fx_rate(cur)
+    return rates
+
+def get_clean_name_mapping(ticker: str) -> str:
+    if ticker == "^IXIC":      return "NASDAQ"
+    if ticker == "^NSEI":      return "NIFTY 50"
+    if ticker == "^BSESN":     return "SENSEX"
+    if ticker == "^DJI":       return "DJI"
+    if ticker == "^GSPC":      return "S&P 500"
+    if ticker == "BTC-USD":    return "Bitcoin"
+    if ticker == "ETH-USD":    return "Ethereum"
+    if ticker == "SOL-USD":    return "Solana"
+    if ticker == "BNB-USD":    return "BNB"
+    if ticker == "GC=F":       return "Gold"
+    if ticker == "SI=F":       return "Silver"
+    if ticker == "CL=F":       return "Crude Oil"
+    if ticker == "NG=F":       return "Natural Gas"
+    if ticker.endswith(".NS"): return ticker.replace(".NS", "")
+    if ticker.endswith(".BO"): return ticker.replace(".BO", "")
+    if ticker.endswith(".L"):  return ticker.replace(".L", "")
+    if ticker.endswith(".DE"): return ticker.replace(".DE", "")
+    if ticker.endswith(".T"):  return ticker.replace(".T", "")
+    if ticker.endswith(".HK"): return ticker.replace(".HK", "")
+    if ticker.endswith(".AX"): return ticker.replace(".AX", "")
+    if ticker.endswith(".TO"): return ticker.replace(".TO", "")
+    return ticker
+
+def is_inr_asset(ticker: str) -> bool:
+    return any(x in ticker for x in [".NS", ".BO", "^NSEI", "^BSESN"])
+
+def is_yahoo_asset(ticker: str) -> bool:
+    t = ticker.upper()
+    return (t.endswith(".NS") or t.endswith(".BO") or t.endswith(".L") or
+            t.endswith(".DE") or t.endswith(".T") or t.endswith(".HK") or
+            t.endswith(".AX") or t.endswith(".TO") or t.endswith(".PA") or
+            t.endswith(".MI") or t.endswith("-USD") or t.endswith("=F") or
+            t.endswith("=X") or t.startswith("^"))
+
+def get_asset_currency(ticker: str) -> str:
+    t = ticker.upper()
+    if is_inr_asset(ticker):      return "INR"
+    if t.endswith(".L"):          return "GBP"
+    if t.endswith(".DE") or t.endswith(".PA") or t.endswith(".MI"): return "EUR"
+    if t.endswith(".T"):          return "JPY"
+    if t.endswith(".HK"):         return "HKD"
+    if t.endswith(".AX"):         return "AUD"
+    if t.endswith(".TO"):         return "CAD"
+    return "USD"
+
+def get_currency_divisor(currency: str, inr_rate: float) -> float:
+    if currency == "USD": return 1.0
+    if currency == "INR": return inr_rate
+    return get_live_fx_rate(currency)
+
+def fetch_live_quote(ticker: str, provider: str) -> dict:
+    ticker = ticker.strip().upper()
+    if provider == "finnhub":
+        url = f"https://finnhub.io/api/v1/quote?symbol={ticker}&token={FINNHUB_API_KEY}"
+        try:
+            r = requests.get(url, timeout=5)
+            if r.status_ok or r.status_code == 200:
+                data = r.json()
+                if data and data.get("c"):
+                    return {"price": float(data["c"]), "change_pct": float(data.get("dp", 0))}
+        except Exception:
+            pass
+    try:
+        t = yf.Ticker(ticker)
+        fast = t.fast_info
+        price = fast.get("lastPrice") or fast.get("previousClose")
+        if price is None:
+            hist = t.history(period="1d")
+            if not hist.empty:
+                price = float(hist["Close"].iloc[-1])
+        if price is not None:
+            open_p = fast.get("open") or fast.get("previousClose") or price
+            chg = ((price - open_p) / open_p) * 100.0 if open_p else 0.0
+            return {"price": float(price), "change_pct": float(chg)}
+    except Exception:
+        pass
+    return None
+
+# ── ROUTES ──
+@app.route("/")
+def index():
+    return render_template("index.html")
+
+@app.route("/api/auth", methods=["POST"])
+def auth():
+    data = request.json or {}
+    action = data.get("action")
+    username = str(data.get("username", "")).strip().lower()
+    password = str(data.get("password", "")).strip()
+
+    if not username or not password:
+        return jsonify({"error": "Missing credentials"}), 400
+
+    user = users_col.find_one({"username": username})
+
+    if action == "register":
+        if user:
+            return jsonify({"error": "Account username exists"}), 400
+        # 2nd Change: Add is_new flag true exclusively upon profile creation
+        new_user = {
+            "username": username,
+            "password": password,
+            "cash": STARTING_CASH,
+            "holdings": {},
+            "history": [],
+            "is_new": True,
+            "hideFromLeaderboard": False
+        }
+        users_col.insert_one(new_user)
+        session["username"] = username
+        session.permanent = True  # 1st Change: Enable persistent session lifetimes
+        return jsonify({"success": True, "username": username, "is_new": True})
+    else:
+        if not user or user["password"] != password:
+            return jsonify({"error": "Invalid username or security password"}), 401
+        session["username"] = username
+        session.permanent = True  # 1st Change: Keep user authenticated on next browser visit
+        return jsonify({"success": True, "username": username, "is_new": user.get("is_new", False)})
+
+@app.route("/api/complete_tutorial", methods=["POST"])
+def complete_tutorial():
+    # 2nd Change: Endpoint to mark tutorial completed so it only presents once
+    if "username" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    users_col.update_one(
+        {"username": session["username"]},
+        {"$set": {"is_new": False}}
+    )
+    return jsonify({"success": True})
+
+@app.route("/api/user")
+def get_user():
+    if "username" not in session:
+        return jsonify({"logged_in": False}), 200
+    user = users_col.find_one({"username": session["username"]})
+    if not user:
+        session.clear()
+        return jsonify({"logged_in": False}), 200
+    return jsonify({
+        "logged_in": True,
+        "username": user["username"],
+        "cash": round(user["cash"], 2),
+        "holdings": user.get("holdings", {}),
+        "history": user.get("history", []),
+        "is_new": user.get("is_new", False),
+        "hideFromLeaderboard": user.get("hideFromLeaderboard", False)
+    })
+
+@app.route("/api/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify({"success": True})
+
+@app.route("/api/trade", methods=["POST"])
+def trade():
+    if "username" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.json or {}
+    ticker = str(data.get("ticker", "")).strip().upper()
+    action = data.get("action")
+    shares = float(data.get("shares", 0))
+
+    if not ticker or action not in ("buy", "sell") or shares <= 0:
+        return jsonify({"error": "Invalid action parameters"}), 400
+
+    user = users_col.find_one({"username": session["username"]})
+    prov = "yahoo" if is_yahoo_asset(ticker) else "finnhub"
+    quote = fetch_live_quote(ticker, prov)
+    if not quote:
+        return jsonify({"error": "Could not verify live market quote"}), 400
+
+    price = quote["price"]
+    currency = get_asset_currency(ticker)
+    inr_rate = get_live_inr_rate()
+    div = get_currency_divisor(currency, inr_rate)
+    cost_usd = (shares * price) / div
+
+    holdings = user.get("holdings", {})
+    cash = user["cash"]
+
+    if action == "buy":
+        if cash < cost_usd:
+            return jsonify({"error": "Insufficient available liquid cash balance"}), 400
+        cash -= cost_usd
+        if ticker in holdings:
+            total_shares = holdings[ticker]["shares"] + shares
+            # continuous average cost formula
+            holdings[ticker]["cost"] = ((holdings[ticker]["cost"] * holdings[ticker]["shares"]) + (price * shares)) / total_shares
+            holdings[ticker]["shares"] = total_shares
+        else:
+            holdings[ticker] = {"shares": shares, "cost": price, "currency": currency}
+    else:
+        if ticker not in holdings or holdings[ticker]["shares"] < shares:
+            return jsonify({"error": "Insufficient portfolio shares to fulfill order"}), 400
+        cash += cost_usd
+        holdings[ticker]["shares"] -= shares
+        if holdings[ticker]["shares"] <= 0:
+            holdings.pop(ticker, None)
+
+    tx_log = {
+        "date": now_str(),
+        "type": action.upper(),
+        "ticker": ticker,
+        "shares": shares,
+        "price": price,
+        "currency": currency,
+        "value_usd": round(cost_usd, 2)
+    }
+
+    users_col.update_one(
+        {"username": user["username"]},
+        {"$set": {"cash": cash, "holdings": holdings}, "$push": {"history": tx_log}}
+    )
+    return jsonify({"success": True})
+
+@app.route("/api/leaderboard")
+def leaderboard():
+    all_users = list(users_col.find({}))
+    board = []
+    inr_rate = get_live_inr_rate()
+    for u in all_users:
+        if u.get("hideFromLeaderboard", False):
+            continue
+        holdings = u.get("holdings", {})
+        cash = u.get("cash", 0)
+        invested_usd = 0.0
+        for sym, h in holdings.items():
+            prov  = "yahoo" if is_yahoo_asset(sym) else "finnhub"
+            quote = fetch_live_quote(sym, prov)
+            sc    = get_asset_currency(sym)
+            sd    = get_currency_divisor(sc, inr_rate)
+            if quote:
+                invested_usd += h["shares"] * quote["price"] / sd
+            else:
+                invested_usd += h["shares"] * h["cost"] / sd
+        net   = cash + invested_usd
+        ret   = ((net - STARTING_CASH) / STARTING_CASH) * 100.0
+        users_col.update_one(
+            {"username": u["username"]},
+            {"$set": {"snapshot": {"net": round(net, 2), "ret": round(ret, 4)}}}
+        )
+        board.append({"username": u["username"], "net": round(net, 2), "return": round(ret, 2)})
+    board.sort(key=lambda x: x["net"], reverse=True)
+    return jsonify(board)
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0", port=5000, debug=True)
 # ── Live FX Rates ─────────────────────────────────────────────────────────────
 # Map of currency code -> Yahoo ticker
 FX_TICKERS = {
