@@ -406,13 +406,11 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 </style>
 </head>
 <body data-theme="raspberry">
-<!-- Matrix rain canvas -->
 <canvas id="matrix-rain"></canvas>
 <div class="grid-bg"></div>
 <div class="scanlines"></div>
 <div class="sb-backdrop" id="sb-backdrop" onclick="App.closeSb()"></div>
 
-<!-- POPUP -->
 <div class="pop-ov" id="gpop">
   <div class="pop-box info" id="pbox">
     <div class="pop-ico" id="pico">INFO</div>
@@ -422,7 +420,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   </div>
 </div>
 
-<!-- AUTH -->
 <div id="s-auth" class="auth-screen">
   <div class="auth-grid"></div>
   <div class="auth-glow"></div>
@@ -466,7 +463,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   </div>
 </div>
 
-<!-- APP -->
 <div id="s-app" class="app-wrap hidden">
   <button class="sb-btn hidden" id="sb-open" onclick="App.openSb()">☰</button>
   <button class="sb-btn" id="sb-close" onclick="App.closeSb()">«</button>
@@ -496,7 +492,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       <div class="sb-brand" style="text-align:left">STOCKEN<span style="color:var(--ac)">SHARES</span></div>
     </div>
 
-    <!-- Market Bar -->
     <div class="mkt-bar" id="mkt-bar">
       <span id="mkt-dot" style="font-size:.6rem;color:var(--td)">●</span>
       <span id="mkt-nse" style="color:var(--t2)">NSE/BSE</span>
@@ -507,7 +502,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       <span style="margin-left:auto;color:var(--td);font-size:.65rem" id="mkt-time"></span>
     </div>
 
-    <!-- PORTFOLIO -->
     <section id="v-port" class="vp">
       <div class="view-hdr">
         <div>
@@ -532,7 +526,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
-    <!-- TRADE -->
     <section id="v-trade" class="vp hidden">
       <div class="view-hdr">
         <div>
@@ -646,7 +639,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
-    <!-- HISTORY -->
     <section id="v-hist" class="vp hidden">
       <div class="view-hdr"><div><h1 class="view-title">History</h1><p class="view-sub">// all trades</p></div></div>
       <div class="card">
@@ -659,7 +651,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
-    <!-- LEADERBOARD -->
     <section id="v-lb" class="vp hidden">
       <div class="view-hdr">
         <div><h1 class="view-title">Leaderboard</h1><p class="view-sub">// ranked by live portfolio value</p></div>
@@ -675,7 +666,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
-    <!-- FX RATES -->
     <section id="v-fx" class="vp hidden">
       <div class="view-hdr"><div><h1 class="view-title">FX Rates</h1><p class="view-sub">// live USD conversion rates · click to set display currency</p></div>
         <button class="btn-primary" style="width:auto;padding:.5rem 1.1rem;font-size:.85rem" onclick="App.loadFxRates()">↻ Refresh</button>
@@ -688,7 +678,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
-    <!-- SETTINGS -->
     <section id="v-set" class="vp hidden">
       <div class="view-hdr"><div><h1 class="view-title">Settings</h1><p class="view-sub">// display &amp; account preferences</p></div></div>
 
@@ -1642,8 +1631,8 @@ btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span>
     const border=dark?(isMatrix?'#0a3a0a':isPink?'#3d1f4a':isTerm?'rgba(0,200,150,.12)':isRasp?'#0f2855':'#1b2636'):'#cbd5e1';
     const text=dark?(isMatrix?'#005a18':isPink?'#7a4a8a':isTerm?'#3a5a4a':isRasp?'#2a5080':'#475569'):'#94a3b8';
     const opts={layout:{background:{color:bg},textColor:text},grid:{vertLines:{color:grid},horzLines:{color:grid}},crosshair:{mode:LightweightCharts.CrosshairMode.Normal},rightPriceScale:{borderColor:border},timeScale:{borderColor:border,timeVisible:true,secondsVisible:false}};
-    this.chartInst=LightweightCharts.createChart(cm,{. . .opts,width:cm.offsetWidth,height:cm.offsetHeight||320});
-    this.volInst=LightweightCharts.createChart(cv,{. . .opts,width:cv.offsetWidth,height:70,timeScale:{visible:false},rightPriceScale:{. . .opts.rightPriceScale,visible:false}});
+    this.chartInst=LightweightCharts.createChart(cm,{...opts,width:cm.offsetWidth,height:cm.offsetHeight||320});
+    this.volInst=LightweightCharts.createChart(cv,{...opts,width:cv.offsetWidth,height:70,timeScale:{visible:false},rightPriceScale:{...opts.rightPriceScale,visible:false}});
     this.addMainSeries();
     this.volSeries=this.volInst.addHistogramSeries({priceFormat:{type:'volume'}});
     this.chartInst.subscribeCrosshairMove(p=>{
@@ -1802,7 +1791,7 @@ btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span>
       {t:'SOL',sym:'SOL-USD'},{t:'INFY',sym:'INFY.NS'},
     ];
     c.innerHTML='';
-    [. . .items,. . .items,. . .items].forEach(i=>{
+    [...items,...items,...items].forEach(i=>{
       const el=document.createElement('div');el.className='ti';el.dataset.sym=i.sym;
       el.innerHTML=`<span class="ti-s">${i.t}</span><span class="ti-price" style="color:var(--td)"><span class="loader-bars" style="transform:scale(.7)"><span></span><span></span><span></span></span></span>`;
       c.appendChild(el);
