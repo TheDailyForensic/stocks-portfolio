@@ -3,9 +3,9 @@
 <head>
 <meta charset="UTF-8"/>
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0"/>
-<title>StockSim — Paper Trading</title>
+<title>StockenShares — Paper Trading</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"/>
-<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&family=IBM+Plex+Mono:wght@300;400;500&family=Bebas+Neue&family=DM+Sans:wght@400;500;700&family=VT323&display=swap" rel="stylesheet"/>
 <style>
 :root {
   --font-display:'Bebas Neue',sans-serif;
@@ -16,12 +16,22 @@
   --ease:.22s cubic-bezier(.4,0,.2,1);
   --chart-h:480px;
 }
-[data-theme="dark"]{
-  --bg:#06090c;--bg-card:#0d121a;--bg-up:#121924;--bg-in:#080b11;--bg-hov:#182232;
-  --b:#1b2636;--bb:#293b54;--t1:#f1f5f9;--t2:#94a3b8;--td:#475569;
-  --ac:#00ff88;--acd:#00cc6a;--acg:rgba(0,255,136,.12);--acb:#66ffb3;--sh:rgba(0,0,0,.5);
+/* ── THEMES ── */
+[data-theme="raspberry"]{
+  --bg:#040a18;--bg-card:#06112a;--bg-up:#081636;--bg-in:#030c1e;--bg-hov:#0d1f45;
+  --b:#0f2855;--bb:#1a3d80;--t1:#cce4ff;--t2:#5a90d4;--td:#2a5080;
+  --ac:#3d8ef0;--acd:#2471d4;--acg:rgba(61,142,240,.12);--acb:#7ab8ff;--sh:rgba(0,0,0,.5);
   --red:#ff3860;--red-dim:#c71f40;--red-glow:rgba(255,56,96,.12);--red-bright:#ff6b8b;
-  --grid-line:rgba(0,255,136,.025);
+  --grid-line:rgba(61,142,240,.03);
+}
+[data-theme="matrix"]{
+  --font-mono:'VT323',monospace;
+  --font-display:'VT323',monospace;
+  --bg:#000800;--bg-card:#010f01;--bg-up:#011501;--bg-in:#000a00;--bg-hov:#021a02;
+  --b:#0a3a0a;--bb:#0f5a0f;--t1:#00ff41;--t2:#00c032;--td:#005a18;
+  --ac:#00ff41;--acd:#00cc33;--acg:rgba(0,255,65,.08);--acb:#66ff88;--sh:rgba(0,0,0,.7);
+  --red:#ff0033;--red-dim:#cc0028;--red-glow:rgba(255,0,51,.1);--red-bright:#ff3355;
+  --grid-line:rgba(0,255,65,.06);
 }
 [data-theme="terminal"]{
   --font-mono:'IBM Plex Mono',monospace;
@@ -38,7 +48,6 @@
   --red:#ff3860;--red-dim:#c71f40;--red-glow:rgba(255,56,96,.08);--red-bright:#e11d48;
   --grid-line:rgba(16,185,129,.05);
 }
-/* ── PINK THEME ── */
 [data-theme="pink"]{
   --bg:#0f0812;--bg-card:#180f1e;--bg-up:#1e1226;--bg-in:#120a18;--bg-hov:#261830;
   --b:#3d1f4a;--bb:#5c2e6e;--t1:#fce4f8;--t2:#c084d4;--td:#7a4a8a;
@@ -46,6 +55,27 @@
   --red:#ff4466;--red-dim:#cc2244;--red-glow:rgba(255,68,102,.12);--red-bright:#ff7799;
   --grid-line:rgba(255,110,180,.025);
 }
+
+/* ── MATRIX SPECIAL EFFECTS ── */
+[data-theme="matrix"] body::before{
+  content:'';position:fixed;inset:0;z-index:1;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(0,255,65,.015) 0,rgba(0,255,65,.015) 1px,transparent 1px,transparent 2px);
+  animation:scanroll 8s linear infinite;
+}
+[data-theme="matrix"] .auth-box,[data-theme="matrix"] .card,[data-theme="matrix"] .sidebar{
+  box-shadow:0 0 20px rgba(0,255,65,.08),inset 0 0 30px rgba(0,255,65,.02);
+}
+[data-theme="matrix"] .kpi-val,[data-theme="matrix"] .brand-wordmark,[data-theme="matrix"] .view-title{
+  text-shadow:0 0 10px var(--ac),0 0 20px var(--acg);
+}
+[data-theme="matrix"] .sym-badge{
+  box-shadow:0 0 8px var(--acg);
+}
+@keyframes scanroll{from{background-position:0 0}to{background-position:0 -100vh}}
+
+/* ── MATRIX RAIN CANVAS ── */
+#matrix-rain{position:fixed;top:0;left:0;width:100%;height:100%;z-index:0;pointer-events:none;opacity:0;transition:opacity .5s}
+[data-theme="matrix"] #matrix-rain{opacity:.18}
 
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 html{font-size:15px;scroll-behavior:smooth}
@@ -60,12 +90,10 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   background-image:linear-gradient(var(--grid-line) 1px,transparent 1px),linear-gradient(90deg,var(--grid-line) 1px,transparent 1px);
   background-size:40px 40px;opacity:0;transition:opacity .4s;
 }
-[data-theme="terminal"] .grid-bg,[data-theme="pink"] .grid-bg{opacity:1}
+[data-theme="terminal"] .grid-bg,[data-theme="pink"] .grid-bg,[data-theme="raspberry"] .grid-bg,[data-theme="matrix"] .grid-bg{opacity:1}
 .scanlines{position:fixed;inset:0;z-index:9999;pointer-events:none;background:repeating-linear-gradient(0deg,transparent,transparent 2px,rgba(0,0,0,.012) 2px,rgba(0,0,0,.012) 4px)}
 
-/* ── LOADING ANIMATION (replaces ···) ── */
 @keyframes spin{to{transform:rotate(360deg)}}
-@keyframes pulse-ring{0%,100%{opacity:.4;transform:scale(.8)}50%{opacity:1;transform:scale(1)}}
 @keyframes bar-grow{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}
 .loader-bars{display:inline-flex;align-items:center;gap:2px;height:14px}
 .loader-bars span{display:inline-block;width:3px;height:100%;background:var(--ac);border-radius:2px;transform-origin:bottom;animation:bar-grow .7s ease-in-out infinite}
@@ -73,7 +101,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 .loader-bars span:nth-child(3){animation-delay:.2s}
 .loader-bars span:nth-child(4){animation-delay:.3s}
 
-/* slow-note under search */
 .slow-note{
   font-family:var(--font-mono);font-size:.68rem;color:var(--td);
   padding:.3rem .6rem;margin-top:.4rem;
@@ -108,7 +135,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 .auth-box{position:relative;z-index:2;width:min(460px,100%);background:var(--bg-card);border:1px solid var(--bb);padding:2.5rem 2rem;border-radius:var(--r-lg);box-shadow:0 20px 60px var(--sh)}
 .auth-box::before{content:'';position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--ac),var(--acb));border-radius:var(--r-lg) var(--r-lg) 0 0}
 .brand{text-align:center;margin-bottom:2rem}
-.brand-wordmark{font-family:var(--font-display);font-size:3.5rem;letter-spacing:.1em;line-height:1;text-shadow:0 0 30px var(--acg)}
+.brand-wordmark{font-family:var(--font-display);font-size:3rem;letter-spacing:.1em;line-height:1;text-shadow:0 0 30px var(--acg)}
 .brand-wordmark span{color:var(--ac)}
 .brand-sub{font-family:var(--font-mono);font-size:.7rem;color:var(--td);letter-spacing:.15em;margin-top:.4rem}
 .auth-tabs{display:grid;grid-template-columns:1fr 1fr;gap:.4rem;margin-bottom:1.5rem;background:var(--bg-in);padding:.3rem;border-radius:var(--r-md);border:1px solid var(--b)}
@@ -124,16 +151,9 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   transition:transform .25s cubic-bezier(.4,0,.2,1);
 }
 .sidebar.sb-off{transform:translateX(calc(-1 * var(--sidebar-w)))}
-
-/* Backdrop for mobile sidebar */
-.sb-backdrop{
-  position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.55);
-  backdrop-filter:blur(2px);opacity:0;pointer-events:none;
-  transition:opacity .25s;
-}
+.sb-backdrop{position:fixed;inset:0;z-index:150;background:rgba(0,0,0,.55);backdrop-filter:blur(2px);opacity:0;pointer-events:none;transition:opacity .25s}
 .sb-backdrop.on{opacity:1;pointer-events:all}
-
-.sb-brand{font-family:var(--font-display);font-size:2rem;letter-spacing:.05em;margin-bottom:.15rem;text-align:center}
+.sb-brand{font-family:var(--font-display);font-size:1.7rem;letter-spacing:.05em;margin-bottom:.15rem;text-align:center;line-height:1.2}
 .sb-brand span{color:var(--ac)}
 .sb-sub{font-family:var(--font-mono);font-size:.6rem;color:var(--td);text-align:center;margin-bottom:1.5rem;letter-spacing:.1em}
 .sb-user{padding:.8rem;background:var(--bg-up);border:1px solid var(--b);border-radius:var(--r-md);margin-bottom:1.5rem;position:relative;overflow:hidden}
@@ -148,8 +168,6 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 .nav-btn.active{color:var(--ac);background:var(--bg-up);border-left:3px solid var(--ac);border-radius:0 var(--r-md) var(--r-md) 0;padding-left:1.2rem}
 .btn-logout{background:rgba(255,56,96,.05);border:1px solid rgba(255,56,96,.2);color:var(--red-bright);padding:.6rem;font-family:var(--font-mono);font-size:.78rem;cursor:pointer;border-radius:var(--r-md);margin-top:auto;transition:all var(--ease);text-align:center}
 .btn-logout:hover{background:var(--red);color:#000;border-color:var(--red)}
-
-/* Sidebar toggle buttons */
 .sb-btn{position:fixed;top:.9rem;z-index:300;background:var(--bg-card);border:1px solid var(--b);border-radius:var(--r-md);color:var(--t2);cursor:pointer;font-size:.85rem;padding:.4rem .6rem;line-height:1;transition:all var(--ease)}
 .sb-btn:hover{color:var(--ac);border-color:var(--ac)}
 #sb-open{left:.9rem}
@@ -244,14 +262,36 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 .ti-s{color:var(--ac);font-weight:700;font-size:.72rem}
 .ti-price{font-size:.67rem;font-weight:600;margin-left:.1rem}
 
-/* ── SETTINGS ── */
-.cur-toggle{display:grid;grid-template-columns:1fr 1fr;background:var(--bg-in);padding:.2rem;border-radius:var(--r-md);border:1px solid var(--b);max-width:220px}
-.cur-btn{background:transparent;border:none;color:var(--t2);padding:.5rem .9rem;font-family:var(--font-mono);font-size:.83rem;cursor:pointer;border-radius:var(--r-sm);transition:all var(--ease);font-weight:600}
-.cur-btn.active{background:var(--bg-card);color:var(--t1);box-shadow:0 2px 8px rgba(0,0,0,.2)}
-.fx-strip{font-family:var(--font-mono);font-size:.72rem;color:var(--td);margin-top:.6rem;padding:.4rem .65rem;background:var(--bg-up);border-radius:var(--r-sm);border:1px solid var(--b)}
-/* 4-column theme grid to fit pink */
-.theme-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:.45rem;margin-top:.75rem}
-.theme-btn{background:var(--bg-in);border:1px solid var(--b);color:var(--t2);padding:.6rem .5rem;font-family:var(--font-mono);font-size:.72rem;cursor:pointer;border-radius:var(--r-md);transition:all var(--ease);text-align:center}
+/* ── FX TABLE ── */
+.fx-table{width:100%;border-collapse:collapse;font-family:var(--font-mono);font-size:.78rem}
+.fx-table th{color:var(--td);font-size:.62rem;text-transform:uppercase;letter-spacing:.06em;padding:.4rem .6rem;border-bottom:1px solid var(--b);text-align:left}
+.fx-table td{padding:.45rem .6rem;border-bottom:1px solid var(--b);color:var(--t1)}
+.fx-table tr:last-child td{border-bottom:none}
+.fx-table tr:hover td{background:var(--bg-hov)}
+.fx-flag{font-size:.9rem;margin-right:.3rem}
+.fx-rate-val{color:var(--ac);font-weight:700}
+.fx-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:.5rem}
+.fx-pill{background:var(--bg-in);border:1px solid var(--b);border-radius:var(--r-md);padding:.55rem .8rem;display:flex;justify-content:space-between;align-items:center;font-family:var(--font-mono);font-size:.75rem;cursor:pointer;transition:all var(--ease)}
+.fx-pill:hover{border-color:var(--ac);background:var(--bg-hov)}
+.fx-pill.active-cur{border-color:var(--ac);background:var(--acg)}
+.fx-name{color:var(--t2);font-size:.68rem}
+.fx-val{color:var(--ac);font-weight:700}
+
+/* ── SETTINGS TOGGLE ── */
+.toggle-row{display:flex;align-items:center;justify-content:space-between;padding:.75rem 0;border-bottom:1px solid var(--b)}
+.toggle-row:last-child{border-bottom:none}
+.toggle-lbl{font-family:var(--font-mono);font-size:.82rem;color:var(--t1)}
+.toggle-sub{font-size:.68rem;color:var(--td);margin-top:.15rem;font-family:var(--font-mono)}
+.toggle-sw{position:relative;width:42px;height:22px;flex-shrink:0}
+.toggle-sw input{opacity:0;width:0;height:0}
+.toggle-track{position:absolute;inset:0;background:var(--b);border-radius:11px;cursor:pointer;transition:background var(--ease)}
+.toggle-sw input:checked+.toggle-track{background:var(--ac)}
+.toggle-knob{position:absolute;top:3px;left:3px;width:16px;height:16px;background:#fff;border-radius:50%;transition:transform var(--ease);pointer-events:none}
+.toggle-sw input:checked~.toggle-knob{transform:translateX(20px)}
+
+/* ── THEME GRID ── */
+.theme-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:.45rem;margin-top:.75rem}
+.theme-btn{background:var(--bg-in);border:1px solid var(--b);color:var(--t2);padding:.6rem .3rem;font-family:var(--font-mono);font-size:.68rem;cursor:pointer;border-radius:var(--r-md);transition:all var(--ease);text-align:center}
 .theme-btn:hover,.theme-btn.active{border-color:var(--ac);color:var(--ac);background:var(--acg)}
 
 /* ── MOBILE ── */
@@ -259,16 +299,10 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 @media(max-width:768px){
   :root{--chart-h:300px}
   html{font-size:14px}
-  /* On mobile sidebar is fixed overlay — same as desktop but with backdrop */
-  .sidebar{bottom:34px} /* already fixed, just ensure it covers */
+  .sidebar{bottom:34px}
   .workspace{margin-left:0!important;width:100%!important;padding:1rem 1rem 5rem}
-  /* Mobile top bar with hamburger */
-  .mob-topbar{
-    display:flex;align-items:center;gap:.75rem;
-    padding:.65rem 1rem;background:var(--bg-card);
-    border-bottom:1px solid var(--b);position:sticky;top:0;z-index:100;
-  }
-  .mob-topbar .sb-brand{font-size:1.4rem;margin:0}
+  .mob-topbar{display:flex;align-items:center;gap:.75rem;padding:.65rem 1rem;background:var(--bg-card);border-bottom:1px solid var(--b);position:sticky;top:0;z-index:100}
+  .mob-topbar .sb-brand{font-size:1.2rem;margin:0}
   .mob-ham{background:transparent;border:1px solid var(--b);color:var(--t2);border-radius:var(--r-md);padding:.4rem .6rem;font-size:1rem;cursor:pointer;line-height:1;transition:all var(--ease);flex-shrink:0}
   .mob-ham:hover{color:var(--ac);border-color:var(--ac)}
   .sb-btn{display:none}
@@ -277,18 +311,29 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   .kpi-val{font-size:1.2rem}
   .dtable{min-width:460px}
   .theme-grid{grid-template-columns:1fr 1fr}
+  .fx-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:480px){
   .auth-box{padding:1.75rem 1.1rem}
-  .brand-wordmark{font-size:2.8rem}
+  .brand-wordmark{font-size:2.5rem}
   .kpi-strip{grid-template-columns:1fr 1fr}
+  .theme-grid{grid-template-columns:1fr 1fr}
 }
+
+/* scroll highlight animation */
+@keyframes highlight-pulse{
+  0%{box-shadow:0 0 0 4px var(--ac)}
+  50%{box-shadow:0 0 20px 8px var(--acg)}
+  100%{box-shadow:0 0 0 0 transparent}
+}
+.scroll-highlight{animation:highlight-pulse 1.2s ease-out}
 </style>
 </head>
-<body data-theme="dark">
+<body data-theme="raspberry">
+<!-- Matrix rain canvas -->
+<canvas id="matrix-rain"></canvas>
 <div class="grid-bg"></div>
 <div class="scanlines"></div>
-<!-- Sidebar backdrop (mobile) -->
 <div class="sb-backdrop" id="sb-backdrop" onclick="App.closeSb()"></div>
 
 <!-- POPUP -->
@@ -307,7 +352,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   <div class="auth-glow"></div>
   <div class="auth-box">
     <div class="brand">
-      <h1 class="brand-wordmark">$STOCK<span>SIM</span></h1>
+      <h1 class="brand-wordmark">STOCKEN<span>SHARES</span></h1>
       <p class="brand-sub">// PAPER TRADING &nbsp;·&nbsp; START WITH $10,000</p>
     </div>
     <div class="auth-tabs">
@@ -347,12 +392,11 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 
 <!-- APP -->
 <div id="s-app" class="app-wrap hidden">
-  <!-- Desktop sidebar toggle buttons -->
   <button class="sb-btn hidden" id="sb-open" onclick="App.openSb()">☰</button>
   <button class="sb-btn" id="sb-close" onclick="App.closeSb()">«</button>
 
   <nav class="sidebar" id="sidebar">
-    <div class="sb-brand">$STOCK<span>SIM</span></div>
+    <div class="sb-brand">STOCKEN<span>SHARES</span></div>
     <div class="sb-sub">GLOBAL PAPER TRADING</div>
     <div class="sb-user">
       <div class="u-name" id="sb-name">...</div>
@@ -364,16 +408,16 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       <li><button class="nav-btn" data-v="v-trade"><span class="n-ico">⇅</span>Trade</button></li>
       <li><button class="nav-btn" data-v="v-hist"><span class="n-ico">◷</span>History</button></li>
       <li><button class="nav-btn" data-v="v-lb"><span class="n-ico">★</span>Leaderboard</button></li>
+      <li><button class="nav-btn" data-v="v-fx"><span class="n-ico">⇄</span>FX Rates</button></li>
       <li><button class="nav-btn" data-v="v-set"><span class="n-ico">⚙</span>Settings</button></li>
     </ul>
     <button class="btn-logout" id="btn-logout">Log Out</button>
   </nav>
 
   <main class="workspace">
-    <!-- Mobile top bar (hamburger + brand) -->
     <div class="mob-topbar" id="mob-topbar" style="display:none">
       <button class="mob-ham" onclick="App.openSb()">☰</button>
-      <div class="sb-brand" style="text-align:left">$STOCK<span style="color:var(--ac)">SIM</span></div>
+      <div class="sb-brand" style="text-align:left">STOCKEN<span style="color:var(--ac)">SHARES</span></div>
     </div>
 
     <!-- Market Bar -->
@@ -421,7 +465,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
         </div>
         <div style="font-family:var(--font-mono);font-size:.85rem;font-weight:700;background:var(--bg-card);border:1px solid var(--b);padding:.5rem .9rem;border-radius:var(--r-md);white-space:nowrap" id="cash-badge">Cash: $0.00</div>
       </div>
-      <div class="card">
+      <div class="card" id="search-card">
         <div class="filter-strip">
           <button class="filter-btn active" data-f="all">All</button>
           <button class="filter-btn" data-f="india">India</button>
@@ -439,7 +483,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
             <button class="btn-primary" id="btn-search" style="width:auto;padding:0 1.2rem;flex-shrink:0">Go</button>
           </div>
           <div class="form-err hidden" id="search-err" style="margin-top:.5rem;margin-bottom:0"></div>
-          <div id="slow-note" class="slow-note hidden">⏳ Fetching data via Groq + Yahoo — this can take a few seconds during high demand…</div>
+          <div id="slow-note" class="slow-note hidden">⏳ Fetching data via Groq + Yahoo — this can take a few seconds…</div>
         </div>
       </div>
 
@@ -486,7 +530,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
             </div>
           </div>
           <div style="display:flex;flex-direction:column;gap:1rem">
-            <div class="card">
+            <div class="card" id="order-card">
               <h3 class="card-title" style="font-size:1rem">Order</h3>
               <div class="trade-toggle">
                 <button class="tog-btn active" data-mode="buy" id="tog-buy">BUY</button>
@@ -540,7 +584,10 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 
     <!-- LEADERBOARD -->
     <section id="v-lb" class="vp hidden">
-      <div class="view-hdr"><div><h1 class="view-title">Leaderboard</h1><p class="view-sub">// ranked by total return</p></div></div>
+      <div class="view-hdr">
+        <div><h1 class="view-title">Leaderboard</h1><p class="view-sub">// ranked by live portfolio value</p></div>
+        <button class="btn-primary" style="width:auto;padding:.5rem 1.1rem;font-size:.85rem" onclick="App.syncLB()">↻ Refresh</button>
+      </div>
       <div class="card">
         <div class="tbl-wrap">
           <table class="dtable">
@@ -551,27 +598,55 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
       </div>
     </section>
 
+    <!-- FX RATES -->
+    <section id="v-fx" class="vp hidden">
+      <div class="view-hdr"><div><h1 class="view-title">FX Rates</h1><p class="view-sub">// live USD conversion rates · click to set display currency</p></div>
+        <button class="btn-primary" style="width:auto;padding:.5rem 1.1rem;font-size:.85rem" onclick="App.loadFxRates()">↻ Refresh</button>
+      </div>
+      <div class="card">
+        <p style="font-family:var(--font-mono);font-size:.74rem;color:var(--t2);margin-bottom:1rem">Tap a currency to use it as your portfolio display currency. All values shown as units per 1 USD.</p>
+        <div class="fx-grid" id="fx-grid">
+          <div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading rates…</div>
+        </div>
+      </div>
+    </section>
+
     <!-- SETTINGS -->
     <section id="v-set" class="vp hidden">
-      <div class="view-hdr"><div><h1 class="view-title">Settings</h1><p class="view-sub">// display preferences</p></div></div>
+      <div class="view-hdr"><div><h1 class="view-title">Settings</h1><p class="view-sub">// display &amp; account preferences</p></div></div>
+
       <div class="card">
         <h3 class="card-title">Color Theme</h3>
-        <p style="font-family:var(--font-mono);font-size:.78rem;color:var(--t2);margin-bottom:.85rem">Choose your vibe.</p>
-        <div class="theme-grid" style="max-width:480px">
-          <button class="theme-btn active" id="tbtn-dark" onclick="App.setTheme('dark')">🟢 Dark</button>
+        <div class="theme-grid" style="max-width:600px">
+          <button class="theme-btn active" id="tbtn-raspberry" onclick="App.setTheme('raspberry')">🫐 Raspberry</button>
+          <button class="theme-btn" id="tbtn-matrix" onclick="App.setTheme('matrix')">💻 Matrix</button>
           <button class="theme-btn" id="tbtn-terminal" onclick="App.setTheme('terminal')">🔵 Terminal</button>
           <button class="theme-btn" id="tbtn-light" onclick="App.setTheme('light')">☀️ Light</button>
           <button class="theme-btn" id="tbtn-pink" onclick="App.setTheme('pink')">🌸 Pink</button>
         </div>
       </div>
+
       <div class="card">
-        <h3 class="card-title">Currency Display</h3>
-        <p style="font-family:var(--font-mono);font-size:.78rem;color:var(--t2);margin-bottom:.85rem">Only affects portfolio display — trade prices always show in their native currency.</p>
-        <div class="cur-toggle" style="margin-bottom:.6rem">
-          <button class="cur-btn active" id="cur-usd" onclick="App.setCur('USD')">$ USD</button>
-          <button class="cur-btn" id="cur-inr" onclick="App.setCur('INR')">₹ INR</button>
+        <h3 class="card-title">Account Preferences</h3>
+        <div style="padding:.25rem 0">
+          <div class="toggle-row">
+            <div>
+              <div class="toggle-lbl">Hide from Leaderboard</div>
+              <div class="toggle-sub">Your name won't appear in the public rankings</div>
+            </div>
+            <label class="toggle-sw">
+              <input type="checkbox" id="pref-hide-lb" onchange="App.savePrefHide(this.checked)"/>
+              <div class="toggle-track"></div>
+              <div class="toggle-knob"></div>
+            </label>
+          </div>
         </div>
-        <div class="fx-strip" id="fx-strip">Loading rate…</div>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Display Currency</h3>
+        <p style="font-family:var(--font-mono);font-size:.78rem;color:var(--t2);margin-bottom:.85rem">Affects portfolio display only. Trade prices always show in their native currency.</p>
+        <p style="font-family:var(--font-mono);font-size:.74rem;color:var(--td);margin-bottom:.85rem">Current: <span id="cur-display" style="color:var(--ac)">USD</span> &nbsp;·&nbsp; Go to <strong>FX Rates</strong> to change it.</p>
       </div>
     </section>
   </main>
@@ -592,6 +667,35 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
   };
   document.head.appendChild(s);
 })();
+
+/* ── MATRIX RAIN ── */
+function startMatrixRain(){
+  const canvas=document.getElementById('matrix-rain');
+  const ctx=canvas.getContext('2d');
+  let W,H,cols,drops;
+  function resize(){W=canvas.width=window.innerWidth;H=canvas.height=window.innerHeight;cols=Math.floor(W/14);drops=drops?drops.slice(0,cols):Array(cols).fill(1);}
+  resize();window.addEventListener('resize',resize);
+  const chars='ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789@#$%^&*(){}[]<>ｦｧｨｩｪｫｬｭｮｯｰｱｲｳｴｵ';
+  let raf;
+  function draw(){
+    ctx.fillStyle='rgba(0,8,0,0.05)';ctx.fillRect(0,0,W,H);
+    ctx.fillStyle='#00ff41';ctx.font='13px VT323, monospace';
+    for(let i=0;i<drops.length;i++){
+      ctx.fillText(chars[Math.floor(Math.random()*chars.length)],i*14,drops[i]*14);
+      if(drops[i]*14>H&&Math.random()>.975) drops[i]=0;
+      drops[i]++;
+    }
+    raf=requestAnimationFrame(draw);
+  }
+  draw();
+  return ()=>{cancelAnimationFrame(raf);}
+}
+let matrixStop=null;
+function checkMatrix(){
+  const t=document.body.getAttribute('data-theme');
+  if(t==='matrix'&&!matrixStop) matrixStop=startMatrixRain();
+  else if(t!=='matrix'&&matrixStop){matrixStop();matrixStop=null;}
+}
 
 function boot(){
 
@@ -624,10 +728,31 @@ const Popup={
     buttons:[{label:'Cancel',cls:'secondary',cb:()=>r(false)},{label:'Confirm',cls:'primary',cb:()=>r(true)}]}))}
 };
 
+const CURRENCIES={
+  USD:{flag:'🇺🇸',name:'US Dollar',sym:'$'},
+  INR:{flag:'🇮🇳',name:'Indian Rupee',sym:'₹'},
+  EUR:{flag:'🇪🇺',name:'Euro',sym:'€'},
+  GBP:{flag:'🇬🇧',name:'British Pound',sym:'£'},
+  JPY:{flag:'🇯🇵',name:'Japanese Yen',sym:'¥'},
+  CNY:{flag:'🇨🇳',name:'Chinese Yuan',sym:'¥'},
+  SGD:{flag:'🇸🇬',name:'Singapore Dollar',sym:'S$'},
+  AUD:{flag:'🇦🇺',name:'Australian Dollar',sym:'A$'},
+  CAD:{flag:'🇨🇦',name:'Canadian Dollar',sym:'C$'},
+  HKD:{flag:'🇭🇰',name:'Hong Kong Dollar',sym:'HK$'},
+  CHF:{flag:'🇨🇭',name:'Swiss Franc',sym:'CHF'},
+  KRW:{flag:'🇰🇷',name:'South Korean Won',sym:'₩'},
+  MXN:{flag:'🇲🇽',name:'Mexican Peso',sym:'MX$'},
+  BRL:{flag:'🇧🇷',name:'Brazilian Real',sym:'R$'},
+  AED:{flag:'🇦🇪',name:'UAE Dirham',sym:'AED'},
+  THB:{flag:'🇹🇭',name:'Thai Baht',sym:'฿'},
+  SEK:{flag:'🇸🇪',name:'Swedish Krona',sym:'kr'},
+  NOK:{flag:'🇳🇴',name:'Norwegian Krone',sym:'kr'},
+};
+
 /* ── APP ── */
 const App={
   user:null,asset:null,tradeMode:'buy',
-  posCache:{},cur:'USD',inrRate:84,
+  posCache:{},cur:'USD',inrRate:84,fxRates:{USD:1.0},
   _chartCtrl:null,
   chartInst:null,volInst:null,mainSeries:null,volSeries:null,
   maSeries:{},activeMA:new Set(),
@@ -639,22 +764,17 @@ const App={
     u=>`https://api.allorigins.win/raw?url=${encodeURIComponent(u)}`,
   ],
 
-  /* ── Sidebar — works identically on mobile and desktop ── */
+  /* ── Sidebar ── */
   openSb(){
-    const sb=document.getElementById('sidebar');
-    const bd=document.getElementById('sb-backdrop');
-    sb.classList.remove('sb-off');
-    bd.classList.add('on');
+    document.getElementById('sidebar').classList.remove('sb-off');
+    document.getElementById('sb-backdrop').classList.add('on');
     document.getElementById('sb-open').classList.add('hidden');
     document.getElementById('sb-close').classList.remove('hidden');
     try{localStorage.setItem('sb-state','open')}catch(e){}
   },
   closeSb(){
-    const sb=document.getElementById('sidebar');
-    const bd=document.getElementById('sb-backdrop');
-    sb.classList.add('sb-off');
-    bd.classList.remove('on');
-    // On desktop also adjust workspace
+    document.getElementById('sidebar').classList.add('sb-off');
+    document.getElementById('sb-backdrop').classList.remove('on');
     if(!this._isMobile){
       const ws=document.querySelector('.workspace');
       ws.style.marginLeft='0px';ws.style.width='100%';
@@ -670,24 +790,17 @@ const App={
       }
     },280);
   },
-  /* legacy alias for onclick attributes */
-  toggleSb(){
-    const sb=document.getElementById('sidebar');
-    if(sb.classList.contains('sb-off')) this.openSb(); else this.closeSb();
-  },
   initSb(){
     this._isMobile=window.innerWidth<=768;
     const mobBar=document.getElementById('mob-topbar');
     if(mobBar) mobBar.style.display=this._isMobile?'flex':'none';
     if(this._isMobile){
-      // Mobile: start closed, workspace full width
       document.getElementById('sidebar').classList.add('sb-off');
       document.getElementById('sb-open').classList.remove('hidden');
       document.getElementById('sb-close').classList.add('hidden');
       const ws=document.querySelector('.workspace');
       ws.style.marginLeft='0';ws.style.width='100%';
     } else {
-      // Desktop: respect saved state
       try{
         if(localStorage.getItem('sb-state')==='closed') this.closeSb();
         else{
@@ -702,7 +815,7 @@ const App={
     }
   },
 
-  /* ── Yahoo fetch with proxy + backend fallback ── */
+  /* ── Yahoo fetch ── */
   async yahooFetch(symbol,interval,range,extSig=null){
     if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
     const base=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`+
@@ -816,13 +929,24 @@ const App={
     {sym:'SHOP.TO',name:'Shopify (TSX)',cat:'intl'},
   ],
 
-  /* ── Format ── */
-  fmtUSD(usd){
-    /* Portfolio display: respect cur setting */
-    if(this.cur==='INR') return '₹'+(usd*this.inrRate).toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
-    return '$'+usd.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  /* ── FX & Currency ── */
+  getCurrencyDivisor(currency){
+    if(!currency||currency==='USD') return 1.0;
+    return this.fxRates[currency]||1.0;
   },
-  /* Trade prices ALWAYS show native — never converted by cur setting */
+
+  fmtUSD(usd){
+    const rate=this.getCurrencyDivisor(this.cur);
+    const val=usd*rate;
+    const ci=CURRENCIES[this.cur];
+    const sym=ci?ci.sym:'$';
+    if(this.cur==='JPY'||this.cur==='KRW')
+      return sym+Math.round(val).toLocaleString();
+    if(this.cur==='INR')
+      return sym+val.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
+    return sym+val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+  },
+
   fmtNative(val,currency){
     if(!currency||currency==='USD'){
       return '$'+val.toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
@@ -830,24 +954,68 @@ const App={
     if(currency==='INR'){
       return '₹'+val.toLocaleString('en-IN',{minimumFractionDigits:2,maximumFractionDigits:2});
     }
-    const syms={GBP:'£',EUR:'€',JPY:'¥',HKD:'HK$',AUD:'A$',CAD:'C$',CHF:'CHF '};
-    const s=syms[currency]||(currency+' ');
+    const ci=CURRENCIES[currency];
+    const s=ci?ci.sym:(currency+' ');
     const dec=val>=1000?0:val>=1?2:4;
     return s+val.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
   },
+
   setCur(c){
     this.cur=c;
-    document.getElementById('cur-usd').classList.toggle('active',c==='USD');
-    document.getElementById('cur-inr').classList.toggle('active',c==='INR');
-    document.getElementById('port-cur-lbl').textContent='// values in '+(c==='USD'?'USD ($)':'INR (₹)');
-    this.updateFxStrip();
+    const lbl=document.getElementById('port-cur-lbl');
+    if(lbl){
+      const ci=CURRENCIES[c];
+      lbl.textContent=`// values in ${c} (${ci?ci.sym:c})`;
+    }
+    const curDisplay=document.getElementById('cur-display');
+    if(curDisplay) curDisplay.textContent=c;
+    // Refresh FX grid highlights
+    document.querySelectorAll('.fx-pill').forEach(p=>{
+      p.classList.toggle('active-cur',p.dataset.cur===c);
+    });
     if(this.user) this.updateCashBadge();
     if(this._lastPort) this.renderPort(this._lastPort);
+    try{localStorage.setItem('display-cur',c)}catch(e){}
   },
-  updateFxStrip(){
-    const el=document.getElementById('fx-strip');
-    if(el) el.textContent=`1 USD = ₹${this.inrRate.toFixed(2)}  ·  portfolio display: ${this.cur}`;
+
+  async loadFxRates(){
+    const grid=document.getElementById('fx-grid');
+    if(grid) grid.innerHTML='<div style="font-family:var(--font-mono);color:var(--td);font-size:.8rem;padding:1rem">Loading…</div>';
+    try{
+      const r=await fetch('/api/fx/rates');
+      const data=await r.json();
+      this.fxRates=data;
+      if(data.INR) this.inrRate=data.INR;
+      this.renderFxGrid(data);
+      if(this._lastPort) this.renderPort(this._lastPort);
+      this.updateCashBadge();
+    }catch(e){
+      if(grid) grid.innerHTML='<div style="color:var(--red-bright);font-family:var(--font-mono);font-size:.78rem;padding:1rem">Could not load rates.</div>';
+    }
   },
+
+  renderFxGrid(rates){
+    const grid=document.getElementById('fx-grid');
+    if(!grid) return;
+    grid.innerHTML='';
+    const order=['USD','INR','EUR','GBP','SGD','JPY','CNY','AUD','CAD','HKD','CHF','KRW','AED','THB','BRL','MXN','SEK','NOK'];
+    order.forEach(cur=>{
+      const rate=rates[cur]??1;
+      const ci=CURRENCIES[cur]||{flag:'💱',name:cur,sym:cur};
+      const pill=document.createElement('div');
+      pill.className='fx-pill'+(this.cur===cur?' active-cur':'');
+      pill.dataset.cur=cur;
+      pill.innerHTML=`
+        <div>
+          <div style="font-weight:700;color:var(--t1)">${ci.flag} ${cur}</div>
+          <div class="fx-name">${ci.name}</div>
+        </div>
+        <div class="fx-val">${cur==='USD'?'1.00':rate.toFixed(cur==='JPY'||cur==='KRW'?2:4)}</div>`;
+      pill.onclick=()=>this.setCur(cur);
+      grid.appendChild(pill);
+    });
+  },
+
   updateCashBadge(){
     const v=this.fmtUSD(this.user?.cash||0);
     const cb=document.getElementById('cash-badge');if(cb) cb.textContent='Cash: '+v;
@@ -855,13 +1023,14 @@ const App={
     const sc=document.getElementById('sb-cash');if(sc) sc.textContent=v;
   },
 
-  /* ── Theme (now includes pink) ── */
+  /* ── Theme ── */
   setTheme(t){
     document.body.setAttribute('data-theme',t);
     try{localStorage.setItem('theme',t)}catch(e){}
-    ['dark','terminal','light','pink'].forEach(x=>{
+    ['raspberry','matrix','terminal','light','pink'].forEach(x=>{
       document.getElementById('tbtn-'+x)?.classList.toggle('active',x===t);
     });
+    checkMatrix();
     if(this.asset){
       if(this.isYahooAsset(this.asset.symbol)){
         this.tearChart();this.initChart();
@@ -872,12 +1041,20 @@ const App={
   },
   initTheme(){
     try{
-      const saved=localStorage.getItem('theme')||'dark';
+      const saved=localStorage.getItem('theme')||'raspberry';
       document.body.setAttribute('data-theme',saved);
-      ['dark','terminal','light','pink'].forEach(x=>{
+      ['raspberry','matrix','terminal','light','pink'].forEach(x=>{
         document.getElementById('tbtn-'+x)?.classList.toggle('active',x===saved);
       });
+      checkMatrix();
     }catch(e){}
+  },
+
+  /* ── Leaderboard hide preference ── */
+  async savePrefHide(val){
+    try{
+      await fetch('/api/auth/preferences',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({hideFromLeaderboard:val})});
+    }catch(e){console.error(e);}
   },
 
   /* ── Init ── */
@@ -887,9 +1064,14 @@ const App={
     this.bindAuth();this.bindNav();this.bindTrade();
     this.bindFilters();this.renderPills();this.renderTape();
     this.updateMarketBar();setInterval(()=>this.updateMarketBar(),60000);
-    fetch('/api/fx/inr').then(r=>r.json()).then(d=>{
-      if(d.usdInrRate) this.inrRate=d.usdInrRate;
-      this.updateFxStrip();
+    // Load FX rates on boot
+    fetch('/api/fx/rates').then(r=>r.json()).then(d=>{
+      this.fxRates=d;
+      if(d.INR) this.inrRate=d.INR;
+      try{
+        const saved=localStorage.getItem('display-cur');
+        if(saved&&d[saved]) this.setCur(saved);
+      }catch(e){}
     }).catch(()=>{});
     this.initSb();
     window.addEventListener('resize',()=>{
@@ -949,6 +1131,9 @@ const App={
     document.getElementById('s-app').classList.remove('hidden');
     document.getElementById('sb-name').textContent=this.user.displayName;
     document.getElementById('sb-handle').textContent='@'+this.user.username;
+    // Load leaderboard hide preference
+    const hideChk=document.getElementById('pref-hide-lb');
+    if(hideChk) hideChk.checked=!!this.user.hideFromLeaderboard;
     this.initSb();
     this.nav('v-port');
     this.fetchTapePrices();
@@ -974,12 +1159,15 @@ const App={
     document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.v===id));
     document.querySelectorAll('.vp').forEach(p=>p.classList.add('hidden'));
     document.getElementById(id).classList.remove('hidden');
-    // Auto-close sidebar on mobile after nav
     if(this._isMobile) this.closeSb();
     if(id==='v-port'||id==='v-hist') await this.syncPort();
     if(id==='v-trade') this.syncTradeView();
     if(id==='v-lb') await this.syncLB();
-    if(id==='v-set') this.updateFxStrip();
+    if(id==='v-fx') await this.loadFxRates();
+    if(id==='v-set'){
+      const curDisplay=document.getElementById('cur-display');
+      if(curDisplay) curDisplay.textContent=this.cur;
+    }
   },
 
   /* ── Portfolio ── */
@@ -988,7 +1176,7 @@ const App={
       const r=await fetch('/api/user/portfolio');if(!r.ok) return;
       const d=await r.json();
       this.user.cash=d.cash;
-      if(d.usdInrRate) this.inrRate=d.usdInrRate;
+      if(d.usdInrRate){this.inrRate=d.usdInrRate;this.fxRates.INR=d.usdInrRate;}
       this._lastPort=d;this.posCache={};
       this.renderPort(d);
     }catch(e){console.error(e);}
@@ -1064,7 +1252,29 @@ const App={
       const d=document.createElement('div');d.className='trend-pill';
       const lbl=s.sym.replace(/\.(NS|BO|L|DE|T|HK|AX|TO|PA|MI)$/,'').replace(/-USD$/,'').replace(/=F$/,'').replace(/^\^/,'');
       d.innerHTML=`<div class="tp-sym">${lbl}</div><div class="tp-lbl">${s.name}</div>`;
-      d.addEventListener('click',()=>{document.getElementById('search-in').value=s.sym;this.searchTicker();});
+      d.addEventListener('click',()=>{
+        document.getElementById('search-in').value=s.sym;
+        this.searchTicker();
+        // Mobile: auto-scroll to order panel after short delay
+        if(this._isMobile){
+          setTimeout(()=>{
+            const panel=document.getElementById('ticker-panel');
+            if(!panel.classList.contains('hidden')){
+              panel.scrollIntoView({behavior:'smooth',block:'start'});
+            } else {
+              // Poll until visible then scroll
+              const obs=new MutationObserver(()=>{
+                if(!panel.classList.contains('hidden')){
+                  obs.disconnect();
+                  panel.scrollIntoView({behavior:'smooth',block:'start'});
+                }
+              });
+              obs.observe(panel,{attributes:true,attributeFilter:['class']});
+              setTimeout(()=>obs.disconnect(),8000);
+            }
+          },200);
+        }
+      });
       c.appendChild(d);
     });
   },
@@ -1083,12 +1293,8 @@ const App={
     const q=document.getElementById('search-in').value.trim();if(!q) return;
     const btn=document.getElementById('btn-search');
     btn.disabled=true;
-    /* ── animated loading bars instead of "…" ── */
     btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span><span></span></span>';
-
-    /* Show slow-note after 5 seconds */
     const slowTimer=setTimeout(()=>slowNote.classList.remove('hidden'),5000);
-
     try{
       let routing=null;
       try{
@@ -1127,22 +1333,29 @@ const App={
         if(!routing){errEl.textContent='Could not reach server — is Flask running?';errEl.classList.remove('hidden');return;}
         this.asset=routing;
       }
-      if(this.asset.usdInrRate) this.inrRate=this.asset.usdInrRate;
+      if(this.asset.usdInrRate){this.inrRate=this.asset.usdInrRate;this.fxRates.INR=this.asset.usdInrRate;}
       document.getElementById('ticker-panel').classList.remove('hidden');
       document.getElementById('t-sym').textContent=this.asset.cleanName;
       document.getElementById('t-name').textContent=this.asset.assetClassDescription||'';
-      /* Price shown in native currency — no INR conversion here */
       document.getElementById('t-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
       const sign=this.asset.change>=0?'+':'';
-      const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).replace(/^[$£€¥₹]/,'')+' ('+sign+this.asset.pct.toFixed(2)+'%)';
+      const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).replace(/^[$£€¥₹S$A$C$HK$CHF ₩MX$R$AED฿kr]/,'')+' ('+sign+this.asset.pct.toFixed(2)+'%)';
       const chgEl=document.getElementById('t-chg');chgEl.textContent=chgStr;chgEl.className=this.asset.change>=0?'gain':'loss';
       document.getElementById('st-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
       document.getElementById('st-high').textContent=this.fmtNative(this.asset.high,this.asset.currency);
       document.getElementById('st-low').textContent=this.fmtNative(this.asset.low,this.asset.currency);
       document.getElementById('st-sym').textContent=this.asset.symbol;
       const nc=this.asset.currency;
-      document.getElementById('st-usd').textContent=nc!=='USD'?'$'+(this.asset.price/(nc==='INR'?this.inrRate:1)).toFixed(4)+' USD':'—';
+      const divisor=this.getCurrencyDivisor(nc);
+      document.getElementById('st-usd').textContent=nc!=='USD'?'$'+(this.asset.price/divisor).toFixed(4)+' USD':'—';
       this.syncSlider();this.loadChart();this.calcOrder();
+      // Mobile: scroll to order panel
+      if(this._isMobile){
+        setTimeout(()=>{
+          const panel=document.getElementById('ticker-panel');
+          panel.scrollIntoView({behavior:'smooth',block:'start'});
+        },300);
+      }
     }catch(e){
       errEl.textContent='Network error. Try again.';errEl.classList.remove('hidden');console.error(e);
     }finally{
@@ -1179,19 +1392,17 @@ const App={
     if(!this.asset){
       document.getElementById('prev-cost').textContent='—';
       document.getElementById('prev-usd').textContent='—';
-      /* Cash After shown in portfolio display currency */
       document.getElementById('prev-after').textContent=this.fmtUSD(cashUsd);
       return;
     }
     const qty=parseFloat(document.getElementById('qty-in').value)||0;
     const costNative=qty*this.asset.price;
-    const costUsd=this.asset.currency==='INR'?costNative/this.inrRate:costNative;
+    const divisor=this.getCurrencyDivisor(this.asset.currency);
+    const costUsd=costNative/divisor;
     const afterUsd=this.tradeMode==='buy'?cashUsd-costUsd:cashUsd+costUsd;
-    /* Cost shown native (not affected by cur setting) */
     document.getElementById('prev-cost').textContent=this.fmtNative(costNative,this.asset.currency);
     document.getElementById('prev-usd').textContent='$'+costUsd.toFixed(2);
     const ae=document.getElementById('prev-after');
-    /* Cash After shown in portfolio currency */
     ae.textContent=this.fmtUSD(afterUsd);ae.className=afterUsd<0?'loss':'';
   },
   async placeOrder(){
@@ -1200,7 +1411,8 @@ const App={
     if(qty<=0){Popup.error('Invalid Quantity','Please enter a valid quantity.');return;}
     const{symbol,price,cleanName,currency}=this.asset;
     const costNative=qty*price;
-    const costUsd=currency==='INR'?costNative/this.inrRate:costNative;
+    const divisor=this.getCurrencyDivisor(currency);
+    const costUsd=costNative/divisor;
     const action=this.tradeMode==='buy'?'Buy':'Sell';
     const ok=await Popup.confirm(`Confirm ${action}`,
       `<strong>${action} ${qty} units</strong> of <strong>${cleanName}</strong><br><br>`+
@@ -1247,21 +1459,22 @@ const App={
     else if(tv==='^DJI') tv='DJ:DJI';
     else if(tv==='^GSPC') tv='SP:SPX';
     const t=document.body.getAttribute('data-theme');
-    const theme=t==='light'?'light':'dark';
+    const theme=(t==='light')?'light':'dark';
     const isMob=window.innerWidth<=768;
     const con=document.getElementById('tv-container');con.innerHTML='';
-    new TradingView.widget({autosize:true,symbol:tv,interval:isMob?'60':'D',timezone:'Etc/UTC',theme,style:'1',locale:'en',toolbar_bg:theme==='dark'?'#0d121a':'#ffffff',enable_publishing:false,hide_side_toolbar:true,withdateranges:!isMob,allow_symbol_change:false,save_image:false,container_id:'tv-container'});
+    new TradingView.widget({autosize:true,symbol:tv,interval:isMob?'60':'D',timezone:'Etc/UTC',theme,style:'1',locale:'en',toolbar_bg:theme==='dark'?'#06112a':'#ffffff',enable_publishing:false,hide_side_toolbar:true,withdateranges:!isMob,allow_symbol_change:false,save_image:false,container_id:'tv-container'});
   },
   initChart(){
     const cm=document.getElementById('cm'),cv=document.getElementById('cv');
     cm.innerHTML='<div id="ctt"><div class="td" id="ctt-d"></div><div id="ctt-b"></div></div><div class="chart-msg" id="cload"><div class="spin"></div><span>Loading…</span></div>';
     cv.innerHTML='';
     const t=document.body.getAttribute('data-theme');
-    const dark=t!=='light';const isTerm=t==='terminal';const isPink=t==='pink';
-    const bg=dark?(isPink?'#120a18':isTerm?'#080c12':'#080b11'):'#f8fafc';
-    const grid=dark?(isPink?'rgba(255,110,180,.03)':isTerm?'rgba(0,200,150,.04)':'rgba(255,255,255,.04)'):'rgba(0,0,0,.04)';
-    const border=dark?(isPink?'#3d1f4a':isTerm?'rgba(0,200,150,.12)':'#1b2636'):'#cbd5e1';
-    const text=dark?(isPink?'#7a4a8a':isTerm?'#3a5a4a':'#475569'):'#94a3b8';
+    const dark=t!=='light';
+    const isMatrix=t==='matrix';const isTerm=t==='terminal';const isPink=t==='pink';const isRasp=t==='raspberry';
+    const bg=dark?(isMatrix?'#000800':isPink?'#120a18':isTerm?'#080c12':isRasp?'#030c1e':'#080b11'):'#f8fafc';
+    const grid=dark?(isMatrix?'rgba(0,255,65,.04)':isPink?'rgba(255,110,180,.03)':isTerm?'rgba(0,200,150,.04)':isRasp?'rgba(61,142,240,.04)':'rgba(255,255,255,.04)'):'rgba(0,0,0,.04)';
+    const border=dark?(isMatrix?'#0a3a0a':isPink?'#3d1f4a':isTerm?'rgba(0,200,150,.12)':isRasp?'#0f2855':'#1b2636'):'#cbd5e1';
+    const text=dark?(isMatrix?'#005a18':isPink?'#7a4a8a':isTerm?'#3a5a4a':isRasp?'#2a5080':'#475569'):'#94a3b8';
     const opts={layout:{background:{color:bg},textColor:text},grid:{vertLines:{color:grid},horzLines:{color:grid}},crosshair:{mode:LightweightCharts.CrosshairMode.Normal},rightPriceScale:{borderColor:border},timeScale:{borderColor:border,timeVisible:true,secondsVisible:false}};
     this.chartInst=LightweightCharts.createChart(cm,{...opts,width:cm.offsetWidth,height:cm.offsetHeight||320});
     this.volInst=LightweightCharts.createChart(cv,{...opts,width:cv.offsetWidth,height:70,timeScale:{visible:false},rightPriceScale:{...opts.rightPriceScale,visible:false}});
@@ -1282,8 +1495,8 @@ const App={
   },
   addMainSeries(){
     const t=document.body.getAttribute('data-theme');
-    const up=t==='terminal'?'#00e5a0':t==='pink'?'#ff6eb4':'#00ff88';
-    const dn=t==='terminal'?'#ff4466':t==='pink'?'#ff3060':'#ff3860';
+    const up=t==='terminal'?'#00e5a0':t==='pink'?'#ff6eb4':t==='matrix'?'#00ff41':t==='raspberry'?'#3d8ef0':'#00ff88';
+    const dn=t==='terminal'?'#ff4466':t==='pink'?'#ff3060':t==='matrix'?'#ff0033':t==='raspberry'?'#ff3860':'#ff3860';
     if(this.chartStyle==='candlestick'){
       this.mainSeries=this.chartInst.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn});
     } else if(this.chartStyle==='area'){
@@ -1362,8 +1575,8 @@ const App={
   applyData(){
     if(!this.mainSeries||!this.volSeries||!this.rawData.length) return;
     const t=document.body.getAttribute('data-theme');
-    const up=t==='terminal'?'rgba(0,229,160,.4)':t==='pink'?'rgba(255,110,180,.4)':'rgba(0,255,136,.4)';
-    const dn=t==='terminal'?'rgba(255,68,102,.4)':t==='pink'?'rgba(255,48,96,.4)':'rgba(255,56,96,.4)';
+    const up=t==='terminal'?'rgba(0,229,160,.4)':t==='pink'?'rgba(255,110,180,.4)':t==='matrix'?'rgba(0,255,65,.4)':t==='raspberry'?'rgba(61,142,240,.4)':'rgba(0,255,136,.4)';
+    const dn=t==='terminal'?'rgba(255,68,102,.4)':t==='pink'?'rgba(255,48,96,.4)':t==='matrix'?'rgba(255,0,51,.4)':t==='raspberry'?'rgba(255,56,96,.4)':'rgba(255,56,96,.4)';
     if(this.chartStyle==='candlestick') this.mainSeries.setData(this.rawData);
     else this.mainSeries.setData(this.rawData.map(d=>({time:d.time,value:d.close})));
     this.volSeries.setData(this.rawData.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?up:dn})));
@@ -1378,31 +1591,25 @@ const App={
     document.getElementById('native-wrap').classList.add('hidden');
   },
 
-  /* ── Leaderboard — fix: use netValue not cash for current user too ── */
+  /* ── Leaderboard — LIVE values, no snapshot stale data ── */
   async syncLB(){
+    const tb=document.getElementById('lb-tbl');
+    tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--td);padding:2rem 0;font-family:var(--font-mono);font-size:.78rem"><span class="loader-bars" style="display:inline-flex"><span></span><span></span><span></span><span></span></span>&nbsp; Computing live values…</td></tr>';
     try{
-      const r=await fetch('/api/leaderboard');if(!r.ok){console.error('LB',r.status);return;}
-      const data=await r.json();if(!Array.isArray(data)){console.error('LB not array');return;}
-      const tb=document.getElementById('lb-tbl');tb.innerHTML='';
+      const r=await fetch('/api/leaderboard');
+      if(!r.ok){console.error('LB',r.status);tb.innerHTML='<tr><td colspan="4" style="color:var(--red-bright);text-align:center;padding:2rem;font-family:var(--font-mono);font-size:.78rem">Failed to load leaderboard.</td></tr>';return;}
+      const data=await r.json();
+      if(!Array.isArray(data)){console.error('LB not array');return;}
+      tb.innerHTML='';
       if(!data.length){
-        tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--td);padding:2.5rem 0;font-family:var(--font-mono);font-size:.78rem">No traders yet.</td></tr>';
+        tb.innerHTML='<tr><td colspan="4" style="text-align:center;color:var(--td);padding:2.5rem 0;font-family:var(--font-mono);font-size:.78rem">No traders on the leaderboard yet.</td></tr>';
         return;
       }
-      /* 
-       * The backend returns netValue (cash + invested).
-       * For the current user we also have fresh portfolio data in this._lastPort.
-       * We use the backend value for consistency — the bug is in the backend snapshot,
-       * so we patch it client-side: if it's the current user and we have a fresher netValue, use it.
-       */
       data.forEach((t,i)=>{
         const isMe=this.user&&t.handle===this.user.username;
-        let netVal=t.netValue;
-        let returns=t.returns;
-        /* If fresh portfolio data exists for current user, override stale snapshot */
-        if(isMe&&this._lastPort){
-          netVal=this._lastPort.netValue;
-          returns=this._lastPort.returns;
-        }
+        // Backend returns fresh live values — use them directly
+        const netVal=t.netValue;
+        const returns=t.returns;
         const medal=i===0?'🥇':i===1?'🥈':i===2?'🥉':'';
         const tr=document.createElement('tr');
         if(isMe) tr.style.cssText='background:var(--acg);outline:1px solid var(--ac)';
@@ -1413,7 +1620,7 @@ const App={
           <td style="font-weight:700" class="${returns>=0?'gain':'loss'}">${returns>=0?'+':''}${returns.toFixed(2)}%</td>`;
         tb.appendChild(tr);
       });
-    }catch(e){console.error('LB error',e);}
+    }catch(e){console.error('LB error',e);tb.innerHTML='<tr><td colspan="4" style="color:var(--red-bright);text-align:center;padding:2rem;font-family:var(--font-mono);font-size:.78rem">Error loading leaderboard.</td></tr>';}
   },
 
   /* ── Ticker tape ── */
@@ -1441,11 +1648,11 @@ const App={
       const data=await r.json();
       document.querySelectorAll('.ti[data-sym]').forEach(el=>{
         const q=data[el.dataset.sym];if(!q) return;
-        const pr=el.querySelector('.ti-price');if(!pr) return;
         const cur=q.currency==='INR'?'₹':q.currency==='GBP'?'£':q.currency==='EUR'?'€':'$';
         const dec=q.price>=1000?0:q.price>=1?2:4;
         const p=q.price.toLocaleString('en-US',{maximumFractionDigits:dec});
         const sign=q.pct>=0?'+':'';
+        pr=el.querySelector('.ti-price');if(!pr) return;
         pr.textContent=` ${cur}${p} ${sign}${q.pct.toFixed(2)}%`;
         pr.style.color=q.pct>=0?'var(--ac)':'var(--red-bright)';
       });
