@@ -1443,7 +1443,9 @@ showTutorial();
     const q=document.getElementById('search-in').value.trim();if(!q) return;
   const btn=document.getElementById('btn-search');
 const loader=document.getElementById('search-loader');
-loader.classList.remove('hidden');
+if(loader){
+  loader.classList.remove('hidden');
+}
 btn.disabled=true;
 btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span><span></span></span>';
     const slowTimer=setTimeout(()=>slowNote.classList.remove('hidden'),5000);
@@ -1451,7 +1453,9 @@ btn.innerHTML='<span class="loader-bars"><span></span><span></span><span></span>
   errEl.textContent='Request timed out. Please try again.';
   errEl.classList.remove('hidden');
   btn.disabled=false;
+  if(loader){
   loader.classList.add('hidden');
+}
   slowNote.classList.add('hidden');
 },15000);
     try{
