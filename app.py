@@ -27,20 +27,96 @@ users_col.create_index("username", unique=True)
 
 STARTING_CASH = 10_000.00
 INR_PER_USD   = 91.0
+
 def now_str():
     return datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
 
-def get_live_inr_rate() -> float:
+# ── Live FX Rates ─────────────────────────────────────────────────────────────
+# Map of currency code -> Yahoo ticker
+FX_TICKERS = {
+    "INR": "INR=X",
+    "EUR": "EURUSD=X",
+    "GBP": "GBPUSD=X",
+    "JPY": "JPY=X",
+    "CNY": "CNY=X",
+    "SGD": "SGD=X",
+    "AUD": "AUD=X",
+    "CAD": "CAD=X",
+    "HKD": "HKD=X",
+    "CHF": "CHF=X",
+    "KRW": "KRW=X",
+    "MXN": "MXN=X",
+    "BRL": "BRL=X",
+    "AED": "AED=X",
+    "THB": "THB=X",
+    "SEK": "SEK=X",
+    "NOK": "NOK=X",
+}
+
+# Fallback rates (units per 1 USD)
+FALLBACK_RATES = {
+    "INR": 91.0,
+    "EUR": 0.92,
+    "GBP": 0.79,
+    "JPY": 149.0,
+    "CNY": 7.24,
+    "SGD": 1.34,
+    "AUD": 1.53,
+    "CAD": 1.36,
+    "HKD": 7.82,
+    "CHF": 0.90,
+    "KRW": 1320.0,
+    "MXN": 17.5,
+    "BRL": 4.95,
+    "AED": 3.67,
+    "THB": 35.5,
+    "SEK": 10.5,
+    "NOK": 10.8,
+}
+
+_fx_cache = {}
+_fx_cache_time = {}
+
+def get_live_fx_rate(currency: str) -> float:
+    """Get live USD->currency exchange rate, cached for 5 minutes."""
+    import time
+    now = time.time()
+    if currency == "USD":
+        return 1.0
+    # Cache for 300 seconds
+    if currency in _fx_cache and now - _fx_cache_time.get(currency, 0) < 300:
+        return _fx_cache[currency]
+    ticker_sym = FX_TICKERS.get(currency)
+    if not ticker_sym:
+        return FALLBACK_RATES.get(currency, 1.0)
     try:
-        t    = yf.Ticker("INR=X")
+        t = yf.Ticker(ticker_sym)
         hist = t.history(period="1d")
         if not hist.empty:
-            hist = hist[~hist.index.duplicated(keep="first")]
-            hist = hist.sort_index(ascending=True)
-            return float(hist["Close"].iloc[-1])
+            hist = hist[~hist.index.duplicated(keep="first")].sort_index()
+            rate = float(hist["Close"].iloc[-1])
+            # Yahoo quote convention: EUR/GBP/AUD tickers give USD per foreign
+            # but INR=X / JPY=X give foreign per USD — normalise to foreign-per-USD
+            if currency in ("EUR", "GBP", "AUD", "CAD", "CHF"):
+                # EURUSD=X gives USD per EUR, so invert for EUR per USD
+                if rate < 2:  # sanity: EUR/USD ~ 0.9
+                    rate = 1.0 / rate if rate != 0 else FALLBACK_RATES.get(currency, 1.0)
+            _fx_cache[currency] = rate
+            _fx_cache_time[currency] = now
+            return rate
     except Exception:
         pass
-    return INR_PER_USD
+    return FALLBACK_RATES.get(currency, 1.0)
+
+def get_live_inr_rate() -> float:
+    return get_live_fx_rate("INR")
+
+def get_all_fx_rates() -> dict:
+    """Return a dict of currency -> units-per-USD for all supported currencies."""
+    rates = {"USD": 1.0}
+    for cur in FALLBACK_RATES:
+        rates[cur] = get_live_fx_rate(cur)
+    return rates
 
 def get_clean_name_mapping(ticker: str) -> str:
     if ticker == "^IXIC":      return "NASDAQ"
@@ -89,22 +165,12 @@ def get_asset_currency(ticker: str) -> str:
     return "USD"
 
 def get_currency_divisor(currency: str, inr_rate: float) -> float:
-    """Returns the units of foreign currency per 1 USD for portfolio valuation math."""
+    """Returns units of foreign currency per 1 USD."""
+    if currency == "USD":
+        return 1.0
     if currency == "INR":
         return inr_rate
-    elif currency == "GBP":
-        return 0.79  # approximate fallback; ideally fetch live
-    elif currency == "EUR":
-        return 0.92
-    elif currency == "JPY":
-        return 149.0
-    elif currency == "HKD":
-        return 7.82
-    elif currency == "AUD":
-        return 1.53
-    elif currency == "CAD":
-        return 1.36
-    return 1.0
+    return get_live_fx_rate(currency)
 
 def interpret_asset_query(user_input: str) -> dict:
     system_instruction = """
@@ -209,7 +275,8 @@ def safe_user_view(user: dict) -> dict:
     return {
         "username":    user["username"],
         "displayName": user["displayName"],
-        "cash":        user["cash"]
+        "cash":        user["cash"],
+        "hideFromLeaderboard": user.get("hideFromLeaderboard", False)
     }
 
 # ── Auth ──────────────────────────────────────────────────────────────────────
@@ -236,7 +303,8 @@ def register():
         "password":    password,
         "cash":        STARTING_CASH,
         "holdings":    {},
-        "history":     []
+        "history":     [],
+        "hideFromLeaderboard": False
     }
     users_col.insert_one(user_doc)
     session["user"] = username
@@ -268,10 +336,28 @@ def get_session():
             return jsonify({"authenticated": True, "user": safe_user_view(u)})
     return jsonify({"authenticated": False})
 
-# ── FX Rate ───────────────────────────────────────────────────────────────────
+@app.route("/api/auth/preferences", methods=["POST"])
+def update_preferences():
+    if "user" not in session:
+        return jsonify({"error": "Unauthorized"}), 401
+    data = request.json or {}
+    update = {}
+    if "hideFromLeaderboard" in data:
+        update["hideFromLeaderboard"] = bool(data["hideFromLeaderboard"])
+    if update:
+        users_col.update_one({"username": session["user"]}, {"$set": update})
+    return jsonify({"success": True})
+
+# ── FX Rates ──────────────────────────────────────────────────────────────────
 @app.route("/api/fx/inr")
 def fx_inr():
     return jsonify({"usdInrRate": get_live_inr_rate()})
+
+@app.route("/api/fx/rates")
+def fx_rates():
+    """Return all supported FX rates."""
+    rates = get_all_fx_rates()
+    return jsonify(rates)
 
 # ── Market Query ──────────────────────────────────────────────────────────────
 @app.route("/api/market/query")
@@ -328,7 +414,7 @@ def chart_yahoo():
     url = (f"https://query1.finance.yahoo.com/v8/finance/chart/{symbol}"
            f"?interval={interval}&range={period}&events=div%2Csplit")
     headers = {
-        "User-Agent": "Mozilla/5.0 (compatible; StockSim/1.0)",
+        "User-Agent": "Mozilla/5.0 (compatible; StockenShares/1.0)",
         "Accept":     "application/json"
     }
     try:
@@ -436,7 +522,6 @@ def user_portfolio():
             curr_price_local = avg_cost_local
             asset_currency   = get_asset_currency(sym)
 
-        # Convert to USD for portfolio mathematics using helper function
         divisor = get_currency_divisor(asset_currency, inr_rate)
 
         avg_cost_usd     = avg_cost_local / divisor
@@ -461,6 +546,12 @@ def user_portfolio():
 
     net_value_usd   = cash + invested_usd
     total_returns   = ((net_value_usd - STARTING_CASH) / STARTING_CASH) * 100.0
+
+    # Update snapshot for leaderboard accuracy
+    users_col.update_one(
+        {"username": session["user"]},
+        {"$set": {"snapshot": {"net": round(net_value_usd, 2), "ret": round(total_returns, 4)}}}
+    )
 
     return jsonify({
         "cash":       cash,
@@ -494,7 +585,7 @@ def trade_execute():
     holdings  = u.get("holdings", {})
     cash      = u["cash"]
     inr_rate  = get_live_inr_rate()
-    
+
     asset_currency = get_asset_currency(symbol)
     divisor = get_currency_divisor(asset_currency, inr_rate)
 
@@ -533,7 +624,7 @@ def trade_execute():
         "currency":    asset_currency
     }
 
-    # Recalculate full valuation snapshots safely applying global currency mappings
+    # Recalculate full valuation snapshots
     snap_invested = 0.0
     for s, h in holdings.items():
         sc = get_asset_currency(s)
@@ -561,14 +652,45 @@ def trade_execute():
 def leaderboard():
     all_users = list(users_col.find({}))
     board = []
+    inr_rate = get_live_inr_rate()
+
     for u in all_users:
-        snap = u.get("snapshot", {})
-        net  = snap.get("net", u["cash"])
-        ret  = snap.get("ret", ((u["cash"] - STARTING_CASH) / STARTING_CASH) * 100.0)
+        # Skip users who opted out
+        if u.get("hideFromLeaderboard", False):
+            continue
+
+        # ALWAYS compute fresh net value from holdings + cash
+        holdings = u.get("holdings", {})
+        cash = u.get("cash", 0)
+        invested_usd = 0.0
+
+        for sym, h in holdings.items():
+            prov  = "yahoo" if is_yahoo_asset(sym) else "finnhub"
+            quote = fetch_live_quote(sym, prov)
+            sc    = get_asset_currency(sym)
+            sd    = get_currency_divisor(sc, inr_rate)
+            if quote:
+                invested_usd += h["shares"] * quote["price"] / sd
+            else:
+                invested_usd += h["shares"] * h["cost"] / sd
+
+        net   = cash + invested_usd
+        ret   = ((net - STARTING_CASH) / STARTING_CASH) * 100.0
+
+        # Update snapshot while we're at it
+        users_col.update_one(
+            {"username": u["username"]},
+            {"$set": {"snapshot": {"net": round(net, 2), "ret": round(ret, 4)}}}
+        )
+
         board.append({
-            "name": u["displayName"], "handle": u["username"],
-            "cash": u["cash"], "netValue": net, "returns": ret
+            "name":     u["displayName"],
+            "handle":   u["username"],
+            "cash":     cash,
+            "netValue": round(net, 2),
+            "returns":  round(ret, 4)
         })
+
     board.sort(key=lambda x: x["netValue"], reverse=True)
     return jsonify(board)
 
