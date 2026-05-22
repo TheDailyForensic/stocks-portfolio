@@ -7,9 +7,13 @@ from flask import Flask, render_template, request, jsonify, session
 from openai import OpenAI
 from pymongo import MongoClient
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import timedelta
 
 app = Flask(__name__)
 app.secret_key = os.environ.get("SECRET_KEY", "dev_secret_change_in_prod")
+
+app.config["SESSION_PERMANENT"] = True
+app.config["PERMANENT_SESSION_LIFETIME"] = timedelta(days=30)
 
 GROQ_API_KEY    = os.environ.get("GROQ_API_KEY")
 FINNHUB_API_KEY = os.environ.get("FINNHUB_API_KEY")
@@ -307,6 +311,7 @@ def register():
         "hideFromLeaderboard": False
     }
     users_col.insert_one(user_doc)
+    session.permanent = True
     session["user"] = username
     return jsonify(safe_user_view(user_doc))
 
@@ -319,7 +324,8 @@ def login():
     u = get_user(username)
     if not u or u["password"] != password:
         return jsonify({"error": "Invalid username or password"}), 401
-
+    
+    session.permanent = True
     session["user"] = username
     return jsonify(safe_user_view(u))
 
