@@ -834,23 +834,46 @@ const App={
   },
 
   /* ── Yahoo client-side fetch ──────────────────────────────────────────── */
-  async yahooFetch(symbol,interval,range,extSig=null){
+async yahooFetch(symbol,interval,range,extSig=null){
+    if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
+
+    // Try CORS proxies first (client-side, fast)
     const base=`https://query1.finance.yahoo.com/v8/finance/chart/${encodeURIComponent(symbol)}`+
                `?interval=${interval}&range=${range}&includePrePost=false`;
     for(let i=0;i<this.PROXIES.length;i++){
       if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
       try{
         const ctrl=new AbortController();
-        const tid=setTimeout(()=>ctrl.abort(),13000);
+        const tid=setTimeout(()=>ctrl.abort(),8000);
         if(extSig) extSig.addEventListener('abort',()=>{clearTimeout(tid);ctrl.abort()},{once:true});
         const res=await fetch(this.PROXIES[i](base),{signal:ctrl.signal});
         clearTimeout(tid);
         if(!res.ok) continue;
-        return await res.json();
+        const json=await res.json();
+        // Make sure we actually got chart data, not an error response
+        if(json?.chart?.result?.[0]) return json;
       }catch(e){
         if(e.name==='AbortError'&&extSig?.aborted) throw e;
-        if(i===this.PROXIES.length-1) throw e;
+        // continue to next proxy
       }
+    }
+
+    // All proxies failed — fall back to our Flask backend proxy
+    if(extSig?.aborted) throw new DOMException('Aborted','AbortError');
+    try{
+      const ctrl=new AbortController();
+      const tid=setTimeout(()=>ctrl.abort(),15000);
+      if(extSig) extSig.addEventListener('abort',()=>{clearTimeout(tid);ctrl.abort()},{once:true});
+      const r=await fetch(
+        `/api/chart/yahoo?symbol=${encodeURIComponent(symbol)}&interval=${interval}&period=${range}`,
+        {signal:ctrl.signal}
+      );
+      clearTimeout(tid);
+      if(!r.ok) throw new Error(`Backend proxy returned ${r.status}`);
+      return await r.json();
+    }catch(e){
+      if(e.name==='AbortError'&&extSig?.aborted) throw e;
+      throw new Error(`Could not fetch data for ${symbol} — try again shortly.`);
     }
   },
 
@@ -1257,15 +1280,17 @@ const App={
           const u=q.trim().toUpperCase();
           symbol=this.isYahooAsset(u)?u:u+'.NS';
         }
-        let json;
+       let json;
         try{json=await this.yahooFetch(symbol,'1d','5d');}
         catch(e){
-          errEl.textContent=`Could not fetch '${symbol}' — check connection.`;
+          errEl.textContent=e.message||`Could not fetch '${symbol}'. Server may be unreachable.`;
           errEl.classList.remove('hidden');return;
         }
         const result=json?.chart?.result?.[0];
         if(!result){
-          errEl.textContent=`Symbol '${symbol}' not found on Yahoo Finance.`;
+          // Yahoo returned a response but no data — likely bad symbol
+          const yahooErr=json?.chart?.error?.description;
+          errEl.textContent=yahooErr||`'${symbol}' not found. Check the ticker and try again.`;
           errEl.classList.remove('hidden');return;
         }
         const meta=result.meta,qd=result.indicators.quote[0],ts=result.timestamp||[];
@@ -1547,15 +1572,12 @@ const App={
     const loadEl=document.getElementById('cload');
     if(loadEl) loadEl.style.display='flex';
     try{
-      let json;
-      // Try client-side CORS proxy first, fall back to backend
+    let json;
       try{json=await this.yahooFetch(this.asset.symbol,this.cInterval,this.cRange,sig);}
       catch(e){
-        if(sig.aborted) return;
-        const r=await fetch(
-          `/api/chart/yahoo?symbol=${encodeURIComponent(this.asset.symbol)}&interval=${this.cInterval}&period=${this.cRange}`,
-          {signal:sig});
-        json=await r.json();
+        if(sig.aborted||e.name==='AbortError') return;
+        if(loadEl) loadEl.innerHTML=`<span style="color:var(--red-bright)">${e.message||'Failed to load chart'}</span>`;
+        return;
       }
       if(sig.aborted) return;
       const result=json?.chart?.result?.[0];
