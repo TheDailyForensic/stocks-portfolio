@@ -181,7 +181,7 @@ def fetch_live_quote(ticker: str, provider: str) -> dict:
 
 # ── ROUTES ──
 @app.route("/")
-def index():
+def home_index():
     return render_template("index.html")
 
 @app.route("/api/auth", methods=["POST"])
