@@ -702,8 +702,19 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
 
       <div class="card">
         <h3 class="card-title">Display Currency</h3>
-        <p style="font-family:var(--font-mono);font-size:.78rem;color:var(--t2);margin-bottom:.85rem">Affects portfolio display only. Trade prices always show in their native currency.</p>
+        <p style="font-family:var(--font-mono);font-size:.78rem;color:var(--t2);margin-bottom:.85rem">Affects portfolio values, trade stats, and chart prices. Go to <strong>FX Rates</strong> to change it.</p>
         <p style="font-family:var(--font-mono);font-size:.74rem;color:var(--td);margin-bottom:.85rem">Current: <span id="cur-display" style="color:var(--ac)">USD</span> &nbsp;·&nbsp; Go to <strong>FX Rates</strong> to change it.</p>
+      </div>
+
+      <div class="card">
+        <h3 class="card-title">Help</h3>
+        <div class="toggle-row" style="border-bottom:none">
+          <div>
+            <div class="toggle-lbl">Tutorial</div>
+            <div class="toggle-sub">Walk through the basics of buying, selling, and themes</div>
+          </div>
+          <button class="filter-btn" style="flex-shrink:0" onclick="Tutorial.start()">Reopen Tutorial</button>
+        </div>
       </div>
     </section>
   </main>
@@ -1101,6 +1112,14 @@ const App={
     return this.fmtUSD(usd);
   },
 
+  // Multiplier to convert native asset prices to current display currency for the chart
+  getChartRate(){
+    if(!this.asset) return 1;
+    const assetDiv=this.getCurrencyDivisor(this.asset.currency||'USD');
+    const displayMult=this.getCurrencyDivisor(this.cur);
+    return displayMult/assetDiv;
+  },
+
   setCur(c){
     this.cur=c;
     const lbl=document.getElementById('port-cur-lbl');
@@ -1116,6 +1135,16 @@ const App={
     });
     if(this.user) this.updateCashBadge();
     if(this._lastPort) this.renderPort(this._lastPort);
+    // Re-render chart if there's live yahoo data loaded
+    if(this.asset&&this.isYahooAsset(this.asset.symbol)&&this.chartInst&&this.rawData.length){
+      const saved=this.rawData.slice();
+      this.tearChart();
+      document.getElementById('native-wrap').classList.remove('hidden');
+      this.initChart();
+      this.rawData=saved;
+      this.applyData();
+      this.activeMA.forEach(p=>this.buildMA(p));
+    }
     try{localStorage.setItem('display-cur',c)}catch(e){}
   },
 
@@ -1657,7 +1686,9 @@ const App={
       const d=p.seriesData?.get(this.mainSeries);if(!d){tt.style.display='none';return;}
       const date=typeof p.time==='string'?p.time:new Date(p.time*1000).toLocaleDateString('en-IN',{day:'2-digit',month:'short',year:'numeric'});
       document.getElementById('ctt-d').textContent=date;
-      document.getElementById('ctt-b').innerHTML=this.chartStyle==='candlestick'?`O ${d.open?.toFixed(2)} &nbsp;H ${d.high?.toFixed(2)} &nbsp;L ${d.low?.toFixed(2)} &nbsp;C ${d.close?.toFixed(2)}`:d.value?.toFixed(2);
+      const cs=CURRENCIES[this.cur]?.sym||'$';
+      const fv=v=>{if(v==null)return'--';const a=Math.abs(v);return cs+(a>=10000?v.toFixed(0):a>=1?v.toFixed(2):v.toFixed(4));};
+      document.getElementById('ctt-b').innerHTML=this.chartStyle==='candlestick'?`O ${fv(d.open)} &nbsp;H ${fv(d.high)} &nbsp;L ${fv(d.low)} &nbsp;C ${fv(d.close)}`:fv(d.value);
       tt.style.display='block';
     });
     if(!window._cro){window._cro=new ResizeObserver(()=>{if(this.chartInst&&cm) this.chartInst.applyOptions({width:cm.offsetWidth,height:cm.offsetHeight||320});if(this.volInst&&cv) this.volInst.applyOptions({width:cv.offsetWidth});});window._cro.observe(cm);window._cro.observe(cv);}
@@ -1666,12 +1697,15 @@ const App={
     const t=document.body.getAttribute('data-theme');
     const up=t==='terminal'?'#00e5a0':t==='pink'?'#ff6eb4':t==='matrix'?'#00ff41':t==='raspberry'?'#3d8ef0':t==='red'?'#e03030':'#00ff88';
     const dn=t==='terminal'?'#ff4466':t==='pink'?'#ff3060':t==='matrix'?'#ff0033':t==='raspberry'?'#ff3860':t==='red'?'#ff5555':'#ff3860';
+    const ci=CURRENCIES[this.cur];const sym=ci?ci.sym:'$';
+    const fmt=p=>{const a=Math.abs(p);const dec=a>=10000?0:a>=100?1:a>=1?2:a>=0.01?4:6;return sym+p.toFixed(dec);};
+    const pf={type:'custom',formatter:fmt,minMove:0.001};
     if(this.chartStyle==='candlestick'){
-      this.mainSeries=this.chartInst.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn});
+      this.mainSeries=this.chartInst.addCandlestickSeries({upColor:up,downColor:dn,borderUpColor:up,borderDownColor:dn,wickUpColor:up,wickDownColor:dn,priceFormat:pf});
     } else if(this.chartStyle==='area'){
-      this.mainSeries=this.chartInst.addAreaSeries({lineColor:up,topColor:up+'30',bottomColor:'rgba(0,0,0,0)',lineWidth:2});
+      this.mainSeries=this.chartInst.addAreaSeries({lineColor:up,topColor:up+'30',bottomColor:'rgba(0,0,0,0)',lineWidth:2,priceFormat:pf});
     } else {
-      this.mainSeries=this.chartInst.addLineSeries({color:up,lineWidth:2});
+      this.mainSeries=this.chartInst.addLineSeries({color:up,lineWidth:2,priceFormat:pf});
     }
   },
   setStyle(s,btnId){
@@ -1698,11 +1732,14 @@ const App={
     if(!this.chartInst||this.rawData.length<period) return;
     if(this.maSeries[period]) this.chartInst.removeSeries(this.maSeries[period]);
     const colors={20:'#f97316',50:'#a78bfa',200:'#38bdf8'};
-    const line=this.chartInst.addLineSeries({color:colors[period]||'#888',lineWidth:1.5,title:`MA${period}`,priceLineVisible:false});
+    const ci=CURRENCIES[this.cur];const sym=ci?ci.sym:'$';
+    const fmt=p=>{const a=Math.abs(p);const dec=a>=10000?0:a>=100?1:a>=1?2:4;return sym+p.toFixed(dec);};
+    const line=this.chartInst.addLineSeries({color:colors[period]||'#888',lineWidth:1.5,title:`MA${period}`,priceLineVisible:false,priceFormat:{type:'custom',formatter:fmt,minMove:0.001}});
+    const r=this.getChartRate();
     const data=[];
     for(let i=period-1;i<this.rawData.length;i++){
       const avg=this.rawData.slice(i-period+1,i+1).reduce((s,d)=>s+d.close,0)/period;
-      data.push({time:this.rawData[i].time,value:+avg.toFixed(2)});
+      data.push({time:this.rawData[i].time,value:+(avg*r).toFixed(r<0.01?6:r<1?4:2)});
     }
     line.setData(data);this.maSeries[period]=line;
   },
@@ -1746,8 +1783,13 @@ const App={
     const t=document.body.getAttribute('data-theme');
     const up=t==='terminal'?'rgba(0,229,160,.4)':t==='pink'?'rgba(255,110,180,.4)':t==='matrix'?'rgba(0,255,65,.4)':t==='raspberry'?'rgba(61,142,240,.4)':t==='red'?'rgba(224,48,48,.4)':'rgba(0,255,136,.4)';
     const dn=t==='terminal'?'rgba(255,68,102,.4)':t==='pink'?'rgba(255,48,96,.4)':t==='matrix'?'rgba(255,0,51,.4)':t==='raspberry'?'rgba(255,56,96,.4)':t==='red'?'rgba(255,80,80,.4)':'rgba(255,56,96,.4)';
-    if(this.chartStyle==='candlestick') this.mainSeries.setData(this.rawData);
-    else this.mainSeries.setData(this.rawData.map(d=>({time:d.time,value:d.close})));
+    const r=this.getChartRate();
+    const cvt=v=>+(v*r).toFixed(r<0.01?6:r<1?4:2);
+    if(this.chartStyle==='candlestick'){
+      this.mainSeries.setData(this.rawData.map(d=>({time:d.time,open:cvt(d.open),high:cvt(d.high),low:cvt(d.low),close:cvt(d.close)})));
+    } else {
+      this.mainSeries.setData(this.rawData.map(d=>({time:d.time,value:cvt(d.close)})));
+    }
     this.volSeries.setData(this.rawData.map(d=>({time:d.time,value:d.volume,color:d.close>=d.open?up:dn})));
     this.chartInst.timeScale().fitContent();this.volInst.timeScale().fitContent();
   },
