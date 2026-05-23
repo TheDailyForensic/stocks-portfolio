@@ -616,7 +616,7 @@ body{background:var(--bg);color:var(--t1);font-family:var(--font-body);line-heig
                 <div style="display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid var(--bg-in)"><span style="color:var(--td)">Price</span><span id="st-price">--</span></div>
                 <div style="display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid var(--bg-in)"><span style="color:var(--td)">Day Low</span><span id="st-low">--</span></div>
                 <div style="display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid var(--bg-in)"><span style="color:var(--td)">Day High</span><span id="st-high">--</span></div>
-                <div style="display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid var(--bg-in)"><span style="color:var(--td)">USD Equiv</span><span id="st-usd">--</span></div>
+                <div style="display:flex;justify-content:space-between;padding:.38rem 0;border-bottom:1px solid var(--bg-in)"><span style="color:var(--td)" id="st-native-lbl">Native</span><span id="st-usd">--</span></div>
                 <div style="display:flex;justify-content:space-between;padding:.38rem 0"><span style="color:var(--td)">Symbol</span><span id="st-sym" style="color:var(--t2);font-size:.72rem">--</span></div>
               </div>
             </div>
@@ -1095,6 +1095,12 @@ const App={
     return s+val.toLocaleString('en-US',{minimumFractionDigits:dec,maximumFractionDigits:dec});
   },
 
+  // Convert a native asset price into the user's chosen display currency and format it
+  fmtDisplayPrice(nativePrice,assetCurrency){
+    const usd=nativePrice/this.getCurrencyDivisor(assetCurrency||'USD');
+    return this.fmtUSD(usd);
+  },
+
   setCur(c){
     this.cur=c;
     const lbl=document.getElementById('port-cur-lbl');
@@ -1481,17 +1487,36 @@ const App={
       document.getElementById('ticker-panel').classList.remove('hidden');
       document.getElementById('t-sym').textContent=this.asset.cleanName;
       document.getElementById('t-name').textContent=this.asset.assetClassDescription||'';
-      document.getElementById('t-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
+      // Big header price: show in display currency
+      document.getElementById('t-price').textContent=this.fmtDisplayPrice(this.asset.price,this.asset.currency);
+      // Change line: convert absolute change to display currency, keep % as-is
       const sign=this.asset.change>=0?'+':'';
-      const chgStr=sign+this.fmtNative(Math.abs(this.asset.change),this.asset.currency).replace(/^[$£€¥₹S$A$C$HK$CHF ₩MX$R$AED฿kr]/,'')+' ('+sign+this.asset.pct.toFixed(2)+'%)';
+      const changeUsd=this.asset.change/this.getCurrencyDivisor(this.asset.currency);
+      const changeDisplay=changeUsd*this.getCurrencyDivisor(this.cur);
+      const ci=CURRENCIES[this.cur];const curSym=ci?ci.sym:'$';
+      const chgAbs=Math.abs(changeDisplay);
+      const chgDec=(this.cur==='JPY'||this.cur==='KRW')?0:chgAbs>=1?2:4;
+      const chgStr=sign+curSym+chgAbs.toLocaleString('en-US',{minimumFractionDigits:chgDec,maximumFractionDigits:chgDec})+' ('+sign+this.asset.pct.toFixed(2)+'%)';
       const chgEl=document.getElementById('t-chg');chgEl.textContent=chgStr;chgEl.className=this.asset.change>=0?'gain':'loss';
-      document.getElementById('st-price').textContent=this.fmtNative(this.asset.price,this.asset.currency);
-      document.getElementById('st-high').textContent=this.fmtNative(this.asset.high,this.asset.currency);
-      document.getElementById('st-low').textContent=this.fmtNative(this.asset.low,this.asset.currency);
+      // Stats panel: Price, High, Low all in display currency
+      document.getElementById('st-price').textContent=this.fmtDisplayPrice(this.asset.price,this.asset.currency);
+      document.getElementById('st-high').textContent=this.fmtDisplayPrice(this.asset.high,this.asset.currency);
+      document.getElementById('st-low').textContent=this.fmtDisplayPrice(this.asset.low,this.asset.currency);
       document.getElementById('st-sym').textContent=this.asset.symbol;
+      // Native row: show original quote price if display != native; show USD if display IS native (and not USD); hide if both USD
       const nc=this.asset.currency;
-      const divisor=this.getCurrencyDivisor(nc);
-      document.getElementById('st-usd').textContent=nc!=='USD'?'$'+(this.asset.price/divisor).toFixed(4)+' USD':'-';
+      const nativeLbl=document.getElementById('st-native-lbl');
+      const nativeVal=document.getElementById('st-usd');
+      if(nc===this.cur){
+        // Already showing in native currency above — show USD equiv instead
+        const usdPrice=this.asset.price/this.getCurrencyDivisor(nc);
+        if(nc==='USD'){nativeLbl.textContent='Native';nativeVal.textContent='-';}
+        else{nativeLbl.textContent='USD Equiv';nativeVal.textContent='$'+usdPrice.toFixed(4);}
+      } else {
+        // Stats show in display currency — bottom row shows the real native quote
+        nativeLbl.textContent='Native ('+nc+')';
+        nativeVal.textContent=this.fmtNative(this.asset.price,nc);
+      }
       this.syncSlider();this.loadChart();this.calcOrder();
       // Mobile: scroll to order panel
       if(this._isMobile){
